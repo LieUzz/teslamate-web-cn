@@ -76,7 +76,9 @@ export default async function BatteryHealthPage() {
           {health.baseline === 'max_observed' &&
             `对比基准：有记录以来的最大容量 ${formatOrDash(health.max_observed_capacity_kwh, { digits: 1, unit: 'kWh' })}（不是出厂值）；相对该值衰减 ${formatPercent(health.degradation_percent, 1)}。配置 BATTERY_ORIGINAL_RANGE_KM 后可与出厂续航对比。`}
           {health.baseline == null &&
-            `暂时无法判断健康度：需要更多有效充电记录（目前 ${health.sample_count} 次）。也可以通过环境变量 BATTERY_ORIGINAL_RANGE_KM 配置出厂满电续航作为对比基准。`}
+            (health.original_full_range_km != null
+              ? `暂时无法判断健康度：已配置出厂满电续航 ${formatOrDash(health.original_full_range_km, { digits: 0, unit: 'km' })}，还需要至少一次有效充电记录来推算当前满电续航（目前 ${health.sample_count} 次）。`
+              : `暂时无法判断健康度：需要更多有效充电记录（目前 ${health.sample_count} 次）。也可以通过环境变量 BATTERY_ORIGINAL_RANGE_KM 配置出厂满电续航作为对比基准。`)}
         </p>
 
         {/* 4 维核心指标 */}
