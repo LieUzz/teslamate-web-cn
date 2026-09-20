@@ -7,18 +7,18 @@ import { DriveMap } from '@/components/map/DriveMap';
 import { DriveProfileChart } from '@/components/charts/DriveProfileChart';
 import { StatCard } from '@/components/common/StatCard';
 import {
-  formatDistance,
   formatDuration,
   formatEnergy,
-  formatEfficiency,
-  formatDateTime,
   formatSpeed,
+  formatOrDash,
+  formatPercent,
+  DASH,
 } from '@/lib/formatters';
+import { Empty } from '@/components/common/Empty';
 import { wgs84ToGcj02 } from '@/lib/coordtransform';
 import {
   ArrowLeft,
   Route,
-  MapPin,
   Gauge,
   Zap,
   TrendingUp,
@@ -27,19 +27,22 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { ShareDriveModal } from '@/components/common/ShareDriveModal';
+import { batteryDelta } from './helpers';
 
 interface DriveDetailClientProps {
   drive: DriveDetail;
+  carName: string | null;
+  carModel: string | null;
 }
 
-export function DriveDetailClient({ drive }: DriveDetailClientProps) {
+export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClientProps) {
   const [showShareModal, setShowShareModal] = useState(false);
 
-  const startPos = drive.positions && drive.positions.length > 0 ? drive.positions[0] : null;
-  const endPos =
-    drive.positions && drive.positions.length > 0
-      ? drive.positions[drive.positions.length - 1]
-      : null;
+  const hasPositions = drive.positions != null && drive.positions.length > 0;
+  const batteryDiff = batteryDelta(drive.start_battery_level, drive.end_battery_level);
+
+  const startPos = hasPositions ? drive.positions[0] : null;
+  const endPos = hasPositions ? drive.positions[drive.positions.length - 1] : null;
 
   // 生成高德地图标记/导航 URL
   const getAmapUrl = (lat: number, lng: number, title: string) => {
@@ -81,10 +84,10 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
             <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[11px]">
               ⚡ 智能合并
             </span>
-            <span>本次旅途包含 {drive.merged_count} 段临时锁车行驶，全量轨迹已无缝平滑拼接</span>
+            <span>本次行程由 {drive.merged_count ?? DASH} 段相邻行程合并而成，轨迹已拼接</span>
           </div>
-          {drive.stopover_duration_min && drive.stopover_duration_min > 0 ? (
-            <span className="text-zinc-400 text-[11px]">中途短暂休整约 {drive.stopover_duration_min} 分钟</span>
+          {drive.stopover_duration_min != null && drive.stopover_duration_min > 0 ? (
+            <span className="text-zinc-400 text-[11px]">中途停留共 {Math.round(drive.stopover_duration_min)} 分钟</span>
           ) : null}
         </div>
       )}
@@ -93,7 +96,7 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <StatCard
           title="行驶距离"
-          value={drive.distance.toFixed(1)}
+          value={formatOrDash(drive.distance, { digits: 1 })}
           unit="km"
           icon={Route}
           subtext={`耗时 ${formatDuration(drive.duration_min)}`}
@@ -101,23 +104,23 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
         />
         <StatCard
           title="行驶能耗"
-          value={drive.efficiency_wh_km}
+          value={formatOrDash(drive.efficiency_wh_km, { digits: 0 })}
           unit="Wh/km"
           icon={TrendingUp}
           subtext={`共消耗 ${formatEnergy(drive.consumption_kwh)}`}
         />
         <StatCard
-          title="车速表现"
-          value={Math.round(drive.speed_avg)}
+          title="平均车速"
+          value={formatOrDash(drive.speed_avg, { digits: 0 })}
           unit="km/h"
           icon={Gauge}
           subtext={`最高时速 ${formatSpeed(drive.speed_max)}`}
         />
         <StatCard
-          title="电量消耗"
-          value={`${drive.start_battery_level}% → ${drive.end_battery_level}%`}
+          title="电量变化"
+          value={`${formatPercent(drive.start_battery_level)} → ${formatPercent(drive.end_battery_level)}`}
           icon={Zap}
-          subtext={`下降 ${drive.start_battery_level - drive.end_battery_level}%`}
+          subtext={`变化 ${batteryDiff != null ? `${batteryDiff > 0 ? '+' : ''}${batteryDiff}%` : DASH}`}
         />
       </div>
 
@@ -129,13 +132,13 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
             <div className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
             <div className="min-w-0">
               <div className="text-zinc-500 text-[10px]">起点位置</div>
-              <div className="text-white font-medium truncate">{drive.start_address}</div>
+              <div className="text-white font-medium truncate">{drive.start_address ?? DASH}</div>
             </div>
           </div>
 
           {startPos && (
             <a
-              href={getAmapUrl(startPos.latitude, startPos.longitude, drive.start_address)}
+              href={getAmapUrl(startPos.latitude, startPos.longitude, drive.start_address ?? '起点')}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shrink-0 transition-colors"
@@ -155,13 +158,13 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
             <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             <div className="min-w-0">
               <div className="text-zinc-500 text-[10px]">终点位置</div>
-              <div className="text-white font-medium truncate">{drive.end_address}</div>
+              <div className="text-white font-medium truncate">{drive.end_address ?? DASH}</div>
             </div>
           </div>
 
           {endPos && (
             <a
-              href={getAmapUrl(endPos.latitude, endPos.longitude, drive.end_address)}
+              href={getAmapUrl(endPos.latitude, endPos.longitude, drive.end_address ?? '终点')}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 shrink-0 transition-colors"
@@ -181,9 +184,13 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
             <Compass className="w-4 h-4 text-red-500" />
             <span>GPS 行车轨迹地图 (高德已纠偏)</span>
           </h2>
-          <span className="text-xs text-zinc-500">{drive.positions.length} 个采集点</span>
+          {hasPositions && <span className="text-xs text-zinc-500">{drive.positions.length} 个采集点</span>}
         </div>
-        <DriveMap positions={drive.positions} height="400px" />
+        {hasPositions ? (
+          <DriveMap positions={drive.positions} height="400px" />
+        ) : (
+          <Empty title="暂无轨迹数据" hint="TeslaMate 没有记录这段行程的定位点" icon={Compass} />
+        )}
       </div>
 
       {/* 速度/功率/海拔曲线剖面图 */}
@@ -192,12 +199,18 @@ export function DriveDetailClient({ drive }: DriveDetailClientProps) {
           <Gauge className="w-4 h-4 text-blue-400" />
           <span>动力与车速剖面图</span>
         </h2>
-        <DriveProfileChart positions={drive.positions} height="280px" />
+        {hasPositions ? (
+          <DriveProfileChart positions={drive.positions} height="280px" />
+        ) : (
+          <Empty as="chart" />
+        )}
       </div>
 
       {/* 分享海报弹窗 */}
       <ShareDriveModal
         drive={drive}
+        carName={carName}
+        carModel={carModel}
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
       />

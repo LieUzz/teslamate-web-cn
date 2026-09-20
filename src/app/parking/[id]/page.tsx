@@ -2,8 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { fetchParkingDetail } from '@/lib/queries';
-import { formatDuration, formatDateTime } from '@/lib/formatters';
-import { Moon, Shield, ArrowLeft, Clock, MapPin, Zap, Thermometer, Battery } from 'lucide-react';
+import { formatDuration, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
+import { Moon, ArrowLeft, Battery, BatteryCharging } from 'lucide-react';
 import { ParkingDetailCharts } from '@/components/charts/ParkingDetailCharts';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +22,8 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
   const parking = await fetchParkingDetail(parkingId);
   if (!parking) notFound();
 
-  const isHealthy = parking.range_lost_km <= 1.5;
+  // 期间有充电时，续航差值不代表静置损耗
+  const lossKnown = !parking.has_charge;
 
   return (
     <div className="space-y-4 pb-24 pt-2 px-3 max-w-4xl mx-auto">
@@ -48,23 +49,23 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
                 <span>停车静置能耗详情</span>
               </h1>
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                parking.is_home ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-zinc-800 text-zinc-300'
+                parking.is_home === true ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-zinc-800 text-zinc-300'
               }`}>
-                {parking.address}
+                {parking.address ?? '未知地点'}
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-1 font-mono">
-              {formatDateTime(parking.start_date)} ➔ {formatDateTime(parking.end_date)}
+              {formatDateTime(parking.start_date)} ➔ {parking.is_current ? '停放中' : formatDateTime(parking.end_date)}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-              isHealthy ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-            }`}>
-              {isHealthy ? '✅ 休眠健康' : '⚠️ 待机耗电活跃'}
-            </span>
-          </div>
+          {parking.has_charge && (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1">
+                <BatteryCharging className="w-3.5 h-3.5" /> 期间有充电
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 4 维关键指标 */}
@@ -74,24 +75,34 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
             <div className="text-base font-bold text-white mt-0.5">{formatDuration(parking.duration_min)}</div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
-            <div className="text-[11px] text-zinc-400">电量与续航变化</div>
+            <div className="text-[11px] text-zinc-400">电量变化</div>
+            <div className="text-base font-bold text-white mt-0.5">
+              {formatPercent(parking.start_battery_level)} ➔ {formatPercent(parking.end_battery_level)}
+            </div>
+            <div className="text-[10px] text-zinc-500 mt-0.5 font-mono">
+              {formatOrDash(parking.start_range_km, { digits: 1 })} ➔ {formatOrDash(parking.end_range_km, { digits: 1, unit: 'km' })}
+            </div>
+          </div>
+          <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
+            <div className="text-[11px] text-zinc-400">静置损耗</div>
             <div className="text-base font-bold text-amber-400 mt-0.5">
-              {parking.has_charge ? '补电完成' : `-${parking.range_lost_km} km`}
+              {lossKnown ? formatOrDash(parking.energy_lost_kwh, { digits: 2, unit: 'kWh' }) : DASH}
+            </div>
+            <div className="text-[10px] text-zinc-500 mt-0.5 font-mono">
+              续航 {lossKnown ? formatOrDash(parking.range_lost_km, { digits: 1, unit: 'km' }) : DASH}
             </div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
-            <div className="text-[11px] text-zinc-400">静置损耗电量</div>
-            <div className="text-base font-bold text-zinc-200 mt-0.5">
-              {parking.has_charge ? '--' : `~${parking.energy_lost_kwh} kWh`}
-            </div>
-          </div>
-          <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
-            <div className="text-[11px] text-zinc-400">平均漏电速率</div>
+            <div className="text-[11px] text-zinc-400">平均损耗速率</div>
             <div className="text-base font-bold text-purple-400 mt-0.5 font-mono">
-              {parking.has_charge ? '--' : `${parking.drain_rate_kwh_per_hour.toFixed(3)} kW`}
+              {lossKnown ? formatOrDash(parking.drain_rate_kwh_per_hour, { digits: 3, unit: 'kWh/h' }) : DASH}
             </div>
           </div>
         </div>
+
+        {parking.has_charge && (
+          <p className="text-[11px] text-zinc-500">期间有充电，无法计算静置损耗</p>
+        )}
       </div>
 
       {/* 📈 停车期间电量与气温走势图 */}
@@ -101,13 +112,6 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
           <span>停车期间电量与环境温度走势</span>
         </h2>
         <ParkingDetailCharts points={parking.points} />
-      </div>
-
-      {/* 诊断小贴士 */}
-      <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-4 text-xs text-zinc-400 space-y-1.5">
-        <div className="font-semibold text-zinc-200">💡 静态漏电诊断与分析</div>
-        <p>• 正常特斯拉车辆在深度休眠状态下的漏电速率约为 0.01~0.03 kWh/h（每天约 1%~2%）。</p>
-        <p>• 开启哨兵模式时，由于车载行车电脑和环视摄像头持续工作，功耗约为 0.2~0.3 kWh/h（每小时约掉电 0.3%~0.5%）。</p>
       </div>
     </div>
   );

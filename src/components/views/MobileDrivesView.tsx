@@ -3,8 +3,11 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
-import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime } from '@/lib/formatters';
-import { Route, ChevronRight, Zap, TrendingUp, Navigation, ArrowUpRight, Gauge, Thermometer, Calendar, Filter } from 'lucide-react';
+import { formatDistance, formatDuration, formatEnergy, formatDateTime, formatOrDash, formatPercent, formatSpeed, DASH } from '@/lib/formatters';
+import { MERGE_MAX_GAP_MINUTES } from '@/lib/constants';
+import { Empty } from '@/components/common/Empty';
+import { Route, ChevronRight, Calendar } from 'lucide-react';
+import { sumKnown, batteryDelta } from './helpers';
 
 export type DriveFilterPeriod = 'today' | '3d' | '7d' | '30d' | 'all';
 
@@ -20,7 +23,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
     { key: '3d', label: '近3日' },
     { key: '7d', label: '近7日' },
     { key: '30d', label: '近30日' },
-    { key: 'all', label: '全部' },
+    { key: 'all', label: '全部已加载' },
   ];
 
   const filteredDrives = useMemo(() => {
@@ -32,16 +35,17 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
       return drives.filter((d) => new Date(d.start_date).getTime() >= todayStart);
     }
 
-    const daysMap: Record<string, number> = { '3d': 3, '7d': 7, '30d': 30 };
-    const days = daysMap[selectedPeriod] || 30;
+    const daysMap: Record<'3d' | '7d' | '30d', number> = { '3d': 3, '7d': 7, '30d': 30 };
+    const days = daysMap[selectedPeriod];
     const threshold = now.getTime() - days * 24 * 60 * 60 * 1000;
 
     return drives.filter((d) => new Date(d.start_date).getTime() >= threshold);
   }, [drives, selectedPeriod]);
 
-  const totalDist = filteredDrives.reduce((s, d) => s + (d.distance || 0), 0);
-  const totalKwh = filteredDrives.reduce((s, d) => s + (d.consumption_kwh || 0), 0);
-  const totalMin = filteredDrives.reduce((s, d) => s + (d.duration_min || 0), 0);
+  // 汇总只累加已知值；没有任何已知值 (含空列表) 时为 null
+  const totalDist = sumKnown(filteredDrives, (d) => d.distance);
+  const totalKwh = sumKnown(filteredDrives, (d) => d.consumption_kwh);
+  const totalMin = sumKnown(filteredDrives, (d) => d.duration_min);
 
   return (
     <div className="space-y-3 pb-24 pt-2 px-2.5 max-w-lg mx-auto">
@@ -56,6 +60,10 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
             {filteredDrives.length} 段连贯行程
           </span>
         </div>
+
+        <p className="text-[10px] text-zinc-500">
+          间隔不超过 {MERGE_MAX_GAP_MINUTES} 分钟且首尾地点一致的相邻行程已自动合并
+        </p>
 
         {/* 筛选 Tabs */}
         <div className="flex items-center justify-between p-1 bg-zinc-950/80 rounded-xl border border-zinc-800 text-xs">
@@ -78,11 +86,11 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
         <div className="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
           <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800/50">
             <div className="text-[10px] text-zinc-400">行驶里程</div>
-            <div className="text-sm font-bold text-white mt-0.5">{totalDist.toFixed(1)} km</div>
+            <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(totalDist, { digits: 1, unit: 'km' })}</div>
           </div>
           <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800/50">
             <div className="text-[10px] text-zinc-400">动力耗电</div>
-            <div className="text-sm font-bold text-emerald-400 mt-0.5">{totalKwh.toFixed(1)} kWh</div>
+            <div className="text-sm font-bold text-emerald-400 mt-0.5">{formatOrDash(totalKwh, { digits: 1, unit: 'kWh' })}</div>
           </div>
           <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800/50">
             <div className="text-[10px] text-zinc-400">驾驶时长</div>
@@ -93,19 +101,17 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
 
       {/* 空状态提示 */}
       {filteredDrives.length === 0 && (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 space-y-2">
-          <Calendar className="w-8 h-8 mx-auto text-zinc-600" />
-          <div className="text-sm font-medium text-zinc-300">选定时间范围内暂无行程</div>
-          <p className="text-xs text-zinc-500">
-            切换为「全部」或选择其他时间段查看历史行驶记录
-          </p>
-        </div>
+        <Empty
+          icon={Calendar}
+          title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行程'}
+          hint={drives.length === 0 ? undefined : '请选择其他时间段'}
+        />
       )}
 
       {/* 行程时间轴列表 */}
       <div className="space-y-2.5">
         {filteredDrives.map((drive) => {
-          const batteryDiff = drive.start_battery_level - drive.end_battery_level;
+          const batteryDiff = batteryDelta(drive.start_battery_level, drive.end_battery_level);
           return (
             <Link
               key={drive.id}
@@ -138,7 +144,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
                     {formatDuration(drive.duration_min)}
                   </div>
                   <div className="text-[10px] text-zinc-500 mt-0.5 truncate whitespace-nowrap">
-                    均速 {Math.round(drive.speed_avg)} km/h
+                    均速 {formatSpeed(drive.speed_avg)}
                   </div>
                 </div>
 
@@ -146,21 +152,21 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
                 <div className="flex flex-col justify-center min-w-0 border-x border-zinc-800/60 px-1">
                   <div className="text-[10px] text-zinc-400 truncate">电量消耗</div>
                   <div className="font-semibold text-emerald-400 mt-0.5 truncate whitespace-nowrap">
-                    {drive.start_battery_level}% ➔ {drive.end_battery_level}%
+                    {formatPercent(drive.start_battery_level)} ➔ {formatPercent(drive.end_battery_level)}
                   </div>
                   <div className="text-[10px] text-emerald-500/80 mt-0.5 truncate whitespace-nowrap">
-                    {batteryDiff > 0 ? `-${batteryDiff}%` : '0%'} ({formatEnergy(drive.consumption_kwh)})
+                    {batteryDiff != null ? `${batteryDiff > 0 ? '+' : ''}${batteryDiff}%` : DASH} ({formatEnergy(drive.consumption_kwh)})
                   </div>
                 </div>
 
                 {/* 3. 综合能耗 */}
                 <div className="flex flex-col justify-center min-w-0">
-                  <div className="text-[10px] text-zinc-400 truncate">百公里能耗</div>
+                  <div className="text-[10px] text-zinc-400 truncate">综合能耗</div>
                   <div className="font-semibold text-white mt-0.5 truncate whitespace-nowrap">
-                    {drive.efficiency_wh_km} <span className="text-[10px] font-normal text-zinc-400">Wh/km</span>
+                    {formatOrDash(drive.efficiency_wh_km, { digits: 0 })} <span className="text-[10px] font-normal text-zinc-400">Wh/km</span>
                   </div>
                   <div className="text-[10px] text-zinc-500 mt-0.5 truncate whitespace-nowrap">
-                    ~¥{(drive.efficiency_wh_km * 0.000311).toFixed(3)}/km
+                    极速 {formatSpeed(drive.speed_max)}
                   </div>
                 </div>
               </div>
@@ -169,7 +175,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
               <div className="mt-2.5 flex items-center justify-between text-[11px] text-zinc-400">
                 <div className="flex items-center gap-1 min-w-0 flex-1 truncate pr-2">
                   <span className="text-emerald-400 font-bold shrink-0">起:</span>
-                  <span className="truncate">{drive.start_address}</span>
+                  <span className="truncate">{drive.start_address ?? DASH}</span>
                 </div>
                 <div className="flex items-center gap-0.5 text-blue-400 shrink-0 font-medium text-[11px]">
                   <span>轨迹</span>
@@ -178,7 +184,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
               </div>
               <div className="mt-1 flex items-center gap-1 text-[11px] text-zinc-400 truncate">
                 <span className="text-red-400 font-bold shrink-0">终:</span>
-                <span className="truncate">{drive.end_address}</span>
+                <span className="truncate">{drive.end_address ?? DASH}</span>
               </div>
             </Link>
           );

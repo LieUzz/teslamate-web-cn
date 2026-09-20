@@ -1,21 +1,24 @@
 'use client';
 
 import React from 'react';
-import { BatteryCharging, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
+import { DASH, formatOrDash } from '@/lib/formatters';
 
 interface BatteryRingProps {
-  level: number;
-  usableLevel?: number | null;
-  rangeKm: number;
+  level: number | null;
+  rangeKm: number | null;
   isCharging?: boolean;
 }
 
-export function BatteryRing({ level, usableLevel, rangeKm, isCharging }: BatteryRingProps) {
+export function BatteryRing({ level, rangeKm, isCharging }: BatteryRingProps) {
   const radius = 64;
   const strokeWidth = 10;
   const normalizedRadius = radius - strokeWidth * 2;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (level / 100) * circumference;
+  // 电量未知：进度环留空
+  const hasLevel = level != null && Number.isFinite(level);
+  const pct = hasLevel ? Math.min(100, Math.max(0, level)) : null;
+  const strokeDashoffset = pct == null ? circumference : circumference - (pct / 100) * circumference;
 
   const getColor = (pct: number) => {
     if (pct <= 20) return '#EF4444'; // red-500
@@ -23,7 +26,7 @@ export function BatteryRing({ level, usableLevel, rangeKm, isCharging }: Battery
     return '#10B981'; // emerald-500
   };
 
-  const strokeColor = isCharging ? '#10B981' : getColor(level);
+  const strokeColor = pct == null ? 'transparent' : isCharging ? '#10B981' : getColor(pct);
 
   return (
     <div className="flex flex-col items-center justify-center relative p-2">
@@ -55,8 +58,8 @@ export function BatteryRing({ level, usableLevel, rangeKm, isCharging }: Battery
         {/* 内部电量数字 */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <div className="flex items-baseline">
-            <span className="text-2xl font-extrabold tracking-tight text-white">{level}</span>
-            <span className="text-xs font-bold text-zinc-400 ml-0.5">%</span>
+            <span className="text-2xl font-extrabold tracking-tight text-white">{hasLevel ? level : DASH}</span>
+            {hasLevel && <span className="text-xs font-bold text-zinc-400 ml-0.5">%</span>}
           </div>
           {isCharging ? (
             <div className="flex items-center gap-0.5 text-[10px] text-emerald-400 font-semibold animate-pulse mt-0.5">
@@ -70,8 +73,8 @@ export function BatteryRing({ level, usableLevel, rangeKm, isCharging }: Battery
       </div>
 
       <div className="mt-2 text-center">
-        <div className="text-xs font-semibold text-zinc-200">{rangeKm.toFixed(0)} km</div>
-        <div className="text-[10px] text-zinc-500">预估表显续航</div>
+        <div className="text-xs font-semibold text-zinc-200">{formatOrDash(rangeKm, { digits: 0, unit: 'km' })}</div>
+        <div className="text-[10px] text-zinc-500">表显续航</div>
       </div>
     </div>
   );

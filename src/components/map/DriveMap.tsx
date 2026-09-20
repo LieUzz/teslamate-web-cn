@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { PositionPoint } from '@/types';
 import { wgs84ToGcj02 } from '@/lib/coordtransform';
+import { Empty } from '@/components/common/Empty';
 
 interface DriveMapProps {
   positions: PositionPoint[];
@@ -30,7 +31,7 @@ export function DriveMap({
 
       const L = (await import('leaflet')).default;
 
-      if (!isMounted) return;
+      if (!isMounted || !mapContainerRef.current) return;
 
       // 如果已有实例则销毁
       if (mapInstanceRef.current) {
@@ -109,6 +110,10 @@ export function DriveMap({
       }
     };
   }, [positions]);
+
+  if (positions.length === 0) {
+    return <Empty as="chart" title="该行程暂无轨迹点" />;
+  }
 
   return (
     <div

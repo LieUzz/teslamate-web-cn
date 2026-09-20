@@ -5,18 +5,15 @@ import Link from 'next/link';
 import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
 import { CarStatusHero } from '@/components/car/CarStatusHero';
 import { StatCard } from '@/components/common/StatCard';
-import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime } from '@/lib/formatters';
-import { 
-  Route, 
-  BatteryCharging, 
-  TrendingUp, 
-  Zap, 
-  Activity, 
-  Gauge, 
-  ArrowRight,
-  Sparkles,
-  ChevronRight,
-  Award
+import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
+import { Empty } from '@/components/common/Empty';
+import {
+  Route,
+  TrendingUp,
+  Zap,
+  Activity,
+  Gauge,
+  ChevronRight
 } from 'lucide-react';
 
 interface DesktopDashboardProps {
@@ -27,68 +24,52 @@ interface DesktopDashboardProps {
 }
 
 export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboardProps) {
-  const nextTarget = 5000;
-  const remainingToNext = Math.max(0, nextTarget - stats.total_distance_km);
+  // 每公里电费：只用 TeslaMate 有记录的里程，且费用已知时才计算
+  const costPerKm =
+    stats.total_charge_cost != null && stats.logged_distance_km != null && stats.logged_distance_km > 0
+      ? stats.total_charge_cost / stats.logged_distance_km
+      : null;
+  const recentDrives = drives.slice(0, 5);
+  const recentCharges = charges.slice(0, 4);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* 顶部车辆核心全景卡片 */}
       <CarStatusHero car={car} />
 
-      {/* 🎯 爱车里程碑成就横幅 */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900/90 border border-amber-500/20 rounded-2xl p-3 px-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
-            <Award className="w-4 h-4" />
-          </div>
-          <span className="text-xs font-semibold text-white">
-            🎉 爱车已突破 1,000 km 破千纪念！
-          </span>
-          <span className="text-[11px] text-zinc-400 hidden sm:inline">
-            · 距离下一里程碑 (5,000 km) 还差 {remainingToNext.toFixed(1)} km
-          </span>
-        </div>
-        <Link
-          href="/stats"
-          className="text-xs font-medium text-amber-400 hover:text-amber-300 flex items-center gap-0.5 transition-colors"
-        >
-          <span>查看成就墙</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-
       {/* 四大核心汇总指标 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="车辆总里程"
-          value={stats.total_distance_km.toLocaleString('zh-CN')}
+          value={formatOrDash(stats.total_distance_km, { digits: 0, locale: true })}
           unit="km"
           icon={Gauge}
-          subtext={`已记录 ${stats.logged_distance_km ? stats.logged_distance_km.toFixed(1) : stats.total_distance_km} km · ${stats.total_drives} 段连贯行程`}
+          subtext={`已记录 ${formatOrDash(stats.logged_distance_km, { digits: 1, locale: true })} km · ${stats.total_drives} 段连贯行程`}
           highlight
         />
         <StatCard
           title="平均行驶能耗"
-          value={stats.avg_efficiency_wh_km}
+          value={formatOrDash(stats.avg_efficiency_wh_km, { digits: 0 })}
           unit="Wh/km"
           icon={TrendingUp}
-          trend={{ value: '能效极佳', isGood: true }}
-          subtext={`累计消耗 ${stats.total_energy_kwh} kWh`}
+          subtext={`累计消耗 ${formatOrDash(stats.total_energy_kwh, { digits: 1, locale: true })} kWh`}
         />
         <StatCard
           title="充电累计充入"
-          value={stats.total_charge_energy_added.toLocaleString('zh-CN')}
+          value={formatOrDash(stats.total_charge_energy_added, { digits: 1, locale: true })}
           unit="kWh"
           icon={Zap}
           subtext={`充电 ${stats.total_charges} 次`}
         />
         <StatCard
           title="累计充电总花费"
-          value={stats.total_charge_cost.toLocaleString('zh-CN', { minimumFractionDigits: 1 })}
+          value={formatOrDash(stats.total_charge_cost, { digits: 1, locale: true })}
           unit="元"
           icon={Activity}
-          trend={{ value: '平均每公里不到0.1元', isGood: true }}
-          subtext="包含家充与超充"
+          subtext={[
+            `按已记录里程 ${costPerKm != null ? `¥${costPerKm.toFixed(3)}` : DASH} / km`,
+            stats.unpriced_charge_count > 0 ? `${stats.unpriced_charge_count} 次充电无费用数据，未计入` : null,
+          ].filter(Boolean).join(' · ')}
         />
       </div>
 
@@ -128,21 +109,22 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50 text-zinc-300">
-                {drives.slice(0, 5).map((drive) => (
+                {recentDrives.length === 0 && <Empty as="row" colSpan={6} title="暂无行程记录" />}
+                {recentDrives.map((drive) => (
                   <tr key={drive.id} className="hover:bg-zinc-800/40 transition-colors group">
                     <td className="py-3 font-mono text-zinc-400">
                       {formatDateTime(drive.start_date)}
                     </td>
                     <td className="py-3 max-w-xs truncate">
-                      <div className="font-medium text-white truncate">{drive.end_address}</div>
-                      <div className="text-[11px] text-zinc-500 truncate">从 {drive.start_address}</div>
+                      <div className="font-medium text-white truncate">{drive.end_address ?? DASH}</div>
+                      <div className="text-[11px] text-zinc-500 truncate">从 {drive.start_address ?? DASH}</div>
                     </td>
                     <td className="py-3">
                       <span className="font-semibold text-white">{formatDistance(drive.distance)}</span>
                       <span className="text-zinc-500 ml-1">({formatDuration(drive.duration_min)})</span>
                     </td>
                     <td className="py-3 font-medium text-emerald-400">
-                      {drive.start_battery_level}% → {drive.end_battery_level}%
+                      {formatPercent(drive.start_battery_level)} → {formatPercent(drive.end_battery_level)}
                       <span className="text-zinc-500 text-[11px] ml-1">({formatEnergy(drive.consumption_kwh)})</span>
                     </td>
                     <td className="py-3">
@@ -187,25 +169,29 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
           </div>
 
           <div className="mt-4 space-y-3 flex-1">
-            {charges.slice(0, 4).map((charge) => (
+            {recentCharges.length === 0 && <Empty title="暂无充电记录" icon={Zap} />}
+            {recentCharges.map((charge) => (
               <div
                 key={charge.id}
                 className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-3 hover:border-zinc-700 transition-all text-xs"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-white truncate max-w-[180px]">
-                    {charge.address}
+                    {charge.address ?? DASH}
                   </span>
                   <span className="font-mono text-emerald-400 font-bold">
-                    +{formatEnergy(charge.charge_energy_added)}
+                    {charge.charge_energy_added != null ? `+${formatEnergy(charge.charge_energy_added)}` : DASH}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-zinc-400 text-[11px]">
                   <span>{formatDateTime(charge.start_date)}</span>
-                  <span className="text-amber-400 font-medium">{formatCurrency(charge.cost)}</span>
+                  <span className="text-amber-400 font-medium">
+                    {formatCurrency(charge.cost)}
+                    {charge.cost != null && charge.cost_source === 'configured' && <span className="text-zinc-500 font-normal ml-1">(估算)</span>}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-zinc-500 text-[10px]">
-                  <span>电量: {charge.start_battery_level}% → {charge.end_battery_level}%</span>
+                  <span>电量: {formatPercent(charge.start_battery_level)} → {formatPercent(charge.end_battery_level)}</span>
                   <span>耗时 {formatDuration(charge.duration_min)}</span>
                 </div>
               </div>

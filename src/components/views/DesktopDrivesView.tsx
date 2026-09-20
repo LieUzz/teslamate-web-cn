@@ -3,9 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
-import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime } from '@/lib/formatters';
-import { Route, MapPin, Zap, ChevronRight, Gauge, Mountain, Calendar } from 'lucide-react';
+import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
+import { MERGE_MAX_GAP_MINUTES } from '@/lib/constants';
+import { Empty } from '@/components/common/Empty';
+import { Route, ChevronRight, Calendar } from 'lucide-react';
 import { DriveFilterPeriod } from './MobileDrivesView';
+import { sumKnown, batteryDelta } from './helpers';
 
 interface DesktopDrivesViewProps {
   drives: DriveSummary[];
@@ -19,7 +22,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
     { key: '3d', label: '近3日' },
     { key: '7d', label: '近7日' },
     { key: '30d', label: '近30日' },
-    { key: 'all', label: '全部历史' },
+    { key: 'all', label: '全部已加载' },
   ];
 
   const filteredDrives = useMemo(() => {
@@ -31,16 +34,17 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
       return drives.filter((d) => new Date(d.start_date).getTime() >= todayStart);
     }
 
-    const daysMap: Record<string, number> = { '3d': 3, '7d': 7, '30d': 30 };
-    const days = daysMap[selectedPeriod] || 30;
+    const daysMap: Record<'3d' | '7d' | '30d', number> = { '3d': 3, '7d': 7, '30d': 30 };
+    const days = daysMap[selectedPeriod];
     const threshold = now.getTime() - days * 24 * 60 * 60 * 1000;
 
     return drives.filter((d) => new Date(d.start_date).getTime() >= threshold);
   }, [drives, selectedPeriod]);
 
-  const totalDistance = filteredDrives.reduce((sum, d) => sum + (d.distance || 0), 0);
-  const totalEnergy = filteredDrives.reduce((sum, d) => sum + (d.consumption_kwh || 0), 0);
-  const totalDuration = filteredDrives.reduce((sum, d) => sum + (d.duration_min || 0), 0);
+  // 汇总只累加已知值；没有任何已知值 (含空列表) 时为 null
+  const totalDistance = sumKnown(filteredDrives, (d) => d.distance);
+  const totalEnergy = sumKnown(filteredDrives, (d) => d.consumption_kwh);
+  const totalDuration = sumKnown(filteredDrives, (d) => d.duration_min);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -57,7 +61,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            已开启智能行程合并算法，10分钟内临时锁车已自动合并为完整连贯行程 (共记录 {drives.length} 段)
+            间隔不超过 {MERGE_MAX_GAP_MINUTES} 分钟且首尾地点一致的相邻行程已自动合并为连贯行程 (已加载最近 {drives.length} 段，汇总仅统计这些行程)
           </p>
         </div>
 
@@ -82,11 +86,11 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
           <div className="flex items-center gap-2.5 text-xs">
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
               <div className="text-zinc-400 text-[10px]">行驶里程</div>
-              <div className="text-xs font-bold text-white mt-0.5">{totalDistance.toFixed(1)} km</div>
+              <div className="text-xs font-bold text-white mt-0.5">{formatOrDash(totalDistance, { digits: 1, unit: 'km' })}</div>
             </div>
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
               <div className="text-zinc-400 text-[10px]">动力耗电</div>
-              <div className="text-xs font-bold text-emerald-400 mt-0.5">{totalEnergy.toFixed(1)} kWh</div>
+              <div className="text-xs font-bold text-emerald-400 mt-0.5">{formatOrDash(totalEnergy, { digits: 1, unit: 'kWh' })}</div>
             </div>
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
               <div className="text-zinc-400 text-[10px]">驾驶时长</div>
@@ -114,16 +118,16 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
             </thead>
             <tbody className="divide-y divide-zinc-800/50 text-zinc-300">
               {filteredDrives.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-zinc-500">
-                    <Calendar className="w-8 h-8 mx-auto text-zinc-600 mb-2" />
-                    <div className="text-sm font-medium text-zinc-400">选定时间范围内暂无行驶记录</div>
-                    <p className="text-xs text-zinc-600 mt-1">请切换为「全部历史」或选择其他时间段</p>
-                  </td>
-                </tr>
+                <Empty
+                  as="row"
+                  colSpan={8}
+                  icon={Calendar}
+                  title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行驶记录'}
+                  hint={drives.length === 0 ? undefined : '请选择其他时间段'}
+                />
               ) : (
                 filteredDrives.map((drive) => {
-                  const batteryDiff = drive.start_battery_level - drive.end_battery_level;
+                  const batteryDiff = batteryDelta(drive.start_battery_level, drive.end_battery_level);
                   return (
                     <tr key={drive.id} className="hover:bg-zinc-800/40 transition-colors">
                       <td className="py-3.5 font-mono text-zinc-400 whitespace-nowrap">
@@ -138,10 +142,10 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                       </td>
                       <td className="py-3.5 max-w-xs truncate">
                         <div className="truncate text-zinc-200">
-                          <span className="text-emerald-400 font-bold mr-1">起</span>{drive.start_address}
+                          <span className="text-emerald-400 font-bold mr-1">起</span>{drive.start_address ?? DASH}
                         </div>
                         <div className="truncate text-zinc-400 text-[11px] mt-0.5">
-                          <span className="text-red-400 font-bold mr-1">终</span>{drive.end_address}
+                          <span className="text-red-400 font-bold mr-1">终</span>{drive.end_address ?? DASH}
                         </div>
                       </td>
                       <td className="py-3.5 font-bold text-white whitespace-nowrap">
@@ -151,14 +155,14 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                         {formatDuration(drive.duration_min)}
                       </td>
                       <td className="py-3.5 font-semibold text-emerald-400 whitespace-nowrap">
-                        {drive.start_battery_level}% → {drive.end_battery_level}% {batteryDiff > 0 ? `(-${batteryDiff}%)` : ''}
+                        {formatPercent(drive.start_battery_level)} → {formatPercent(drive.end_battery_level)}{batteryDiff != null ? ` (${batteryDiff > 0 ? '+' : ''}${batteryDiff}%)` : ''}
                       </td>
                       <td className="py-3.5 whitespace-nowrap">
                         <span className="font-bold text-white">{formatEnergy(drive.consumption_kwh)}</span>
                         <span className="text-zinc-400 text-[11px] ml-1.5">({formatEfficiency(drive.efficiency_wh_km)})</span>
                       </td>
                       <td className="py-3.5 text-zinc-300 whitespace-nowrap">
-                        {drive.speed_avg} / {drive.speed_max} <span className="text-[10px] text-zinc-500">km/h</span>
+                        {formatOrDash(drive.speed_avg, { digits: 0 })} / {formatOrDash(drive.speed_max, { digits: 0 })} <span className="text-[10px] text-zinc-500">km/h</span>
                       </td>
                       <td className="py-3.5 text-right whitespace-nowrap">
                         <Link

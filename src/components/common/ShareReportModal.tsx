@@ -2,13 +2,15 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { MonthlyReport } from '@/types';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatOrDash } from '@/lib/formatters';
 import { toPng } from 'html-to-image';
-import { X, Copy, Check, Sparkles, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Copy, Check, Sparkles, Route, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface ShareReportModalProps {
   report: MonthlyReport;
-  carName?: string;
+  // 车辆名称/车型来自 Car 对象；未知时传 null，海报上不显示
+  carName: string | null;
+  carModel?: string | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -45,7 +47,8 @@ async function safeCopyToClipboard(text: string): Promise<boolean> {
 
 export function ShareReportModal({
   report,
-  carName = 'My Tesla',
+  carName,
+  carModel = null,
   isOpen,
   onClose,
 }: ShareReportModalProps) {
@@ -91,15 +94,46 @@ export function ShareReportModal({
 
   if (!isOpen) return null;
 
+  const headerTitle = carName ?? carModel ?? '出行月报';
+  const headerSubtitle = carName != null ? carModel : null;
+
+  const unpricedNote = report.unpriced_charge_count > 0 ? `${report.unpriced_charge_count} 次充电无费用数据，未计入` : null;
+  // 每公里电费：没有里程、没有电费、或电费不完整时都算不出来
+  const costPerKm =
+    report.charge_cost != null && report.distance_km > 0 && report.unpriced_charge_count === 0
+      ? report.charge_cost / report.distance_km
+      : null;
+  // 电费占同里程油车费用的比例
+  const costRatioPercent =
+    report.charge_cost != null && report.fuel_equivalent_cost != null && report.fuel_equivalent_cost > 0
+      ? (report.charge_cost / report.fuel_equivalent_cost) * 100
+      : null;
+  // saved_cost 可能为负 (电费高于油费)，如实展示
+  const savedText =
+    report.saved_cost == null
+      ? null
+      : report.saved_cost >= 0
+        ? { label: '本月对比同里程油车节省', value: formatCurrency(report.saved_cost) }
+        : { label: '本月电费高于同里程油车', value: formatCurrency(-report.saved_cost) };
+
+  const distanceText = formatOrDash(report.distance_km, { digits: 1, unit: 'km' });
+  const chargeEnergyText = formatOrDash(report.charge_energy_kwh, { digits: 1, unit: 'kWh' });
+
   // 复制文字战报
   const handleCopyText = async () => {
-    const text = `🚗【${carName} · ${report.month} 出行月报】
-📍 行驶里程: ${report.distance_km} km (${report.drive_count} 次行程)
-⚡ 充入电量: ${report.charge_energy_kwh} kWh
-💰 家充总电费: ${formatCurrency(report.charge_cost)} (折合 ¥${(report.charge_cost / Math.max(1, report.distance_km)).toFixed(3)}/km)
-🌿 综合能耗: ${report.avg_wh_km} Wh/km
-⛽ 对比同里程油车净省: ${formatCurrency(report.saved_cost)}！
-✨ 由 TeslaMate CN 专属生成。`;
+    // 未知的指标不写进战报
+    const lines = [
+      `🚗【${carName != null ? `${carName} · ` : ''}${report.month} 出行月报】`,
+      `📍 行驶里程: ${distanceText} (${report.drive_count} 次行程)`,
+      `⚡ 充入电量: ${chargeEnergyText} (${report.charge_count} 次充电)`,
+      report.charge_cost != null
+        ? `💰 充电费用: ${formatCurrency(report.charge_cost)}${costPerKm != null ? ` (折合 ¥${costPerKm.toFixed(3)}/km)` : ''}${unpricedNote ? ` (${unpricedNote})` : ''}`
+        : null,
+      report.avg_wh_km != null ? `🌿 平均能耗: ${Math.round(report.avg_wh_km)} Wh/km` : null,
+      savedText != null ? `⛽ ${savedText.label}: ${savedText.value}` : null,
+      '✨ 由 TeslaMate CN 生成',
+    ].filter((v): v is string => v != null);
+    const text = lines.join('\n');
 
     const ok = await safeCopyToClipboard(text);
     if (ok) {
@@ -149,8 +183,8 @@ export function ShareReportModal({
                     <span className="text-base tracking-tighter">T</span>
                   </div>
                   <div>
-                    <div className="text-xs font-bold tracking-tight text-white">{carName}</div>
-                    <div className="text-[10px] text-zinc-400 font-mono">Model Y · 50 标准版</div>
+                    <div className="text-xs font-bold tracking-tight text-white">{headerTitle}</div>
+                    {headerSubtitle && <div className="text-[10px] text-zinc-400 font-mono">{headerSubtitle}</div>}
                   </div>
                 </div>
 
@@ -159,53 +193,83 @@ export function ShareReportModal({
                 </span>
               </div>
 
-              {/* 核心亮点主视觉 */}
+              {/* 核心主视觉：有油车对比数据时展示差额，否则展示本月里程 */}
               <div className="text-center py-2 bg-zinc-900/40 rounded-2xl border border-zinc-800/60 p-3">
-                <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>本月对比燃油车已净省</span>
-                </div>
-                <div className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 mt-0.5">
-                  {formatCurrency(report.saved_cost)}
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
-                  实际电费仅为同里程油车费用的 10.5%
-                </div>
+                {savedText != null ? (
+                  <>
+                    <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{savedText.label}</span>
+                    </div>
+                    <div
+                      className={`text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r mt-0.5 ${
+                        report.saved_cost != null && report.saved_cost < 0 ? 'from-amber-400 to-orange-300' : 'from-emerald-400 to-teal-300'
+                      }`}
+                    >
+                      {savedText.value}
+                    </div>
+                    {costRatioPercent != null && (
+                      <div className="text-[10px] text-zinc-500 mt-0.5">
+                        电费为同里程油车费用的 {costRatioPercent.toFixed(1)}%
+                      </div>
+                    )}
+                    {unpricedNote && <div className="text-[10px] text-zinc-500 mt-0.5">{unpricedNote}</div>}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
+                      <Route className="w-3.5 h-3.5 text-blue-400" />
+                      <span>本月行驶里程</span>
+                    </div>
+                    <div className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 mt-0.5">
+                      {distanceText}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* 4 维关键指标格 */}
+              {/* 关键指标格：没有数据的格子不出现 */}
               <div className="grid grid-cols-2 gap-2 text-left text-xs">
                 <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
                   <div className="text-[10px] text-zinc-400">总行驶里程</div>
-                  <div className="text-sm font-bold text-white mt-0.5">{report.distance_km} <span className="text-[10px] font-normal text-zinc-400">km</span></div>
+                  <div className="text-sm font-bold text-white mt-0.5">{distanceText}</div>
                   <div className="text-[9px] text-zinc-500 mt-0.5">{report.drive_count} 次出行</div>
                 </div>
 
                 <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-400">家充总电费</div>
-                  <div className="text-sm font-bold text-amber-400 mt-0.5">{formatCurrency(report.charge_cost)}</div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5">充入 {report.charge_energy_kwh} 度电</div>
+                  <div className="text-[10px] text-zinc-400">充入电量</div>
+                  <div className="text-sm font-bold text-white mt-0.5">{chargeEnergyText}</div>
+                  <div className="text-[9px] text-zinc-500 mt-0.5">{report.charge_count} 次充电</div>
                 </div>
 
-                <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-400">百公里平均能耗</div>
-                  <div className="text-sm font-bold text-emerald-400 mt-0.5">{report.avg_wh_km} <span className="text-[10px] font-normal text-zinc-400">Wh/km</span></div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5">能效优于全国 96% 车友</div>
-                </div>
-
-                <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-400">折合每公里电费</div>
-                  <div className="text-sm font-bold text-blue-400 mt-0.5">
-                    ¥{(report.charge_cost / Math.max(1, report.distance_km)).toFixed(3)}
+                {report.charge_cost != null && (
+                  <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
+                    <div className="text-[10px] text-zinc-400">充电费用</div>
+                    <div className="text-sm font-bold text-amber-400 mt-0.5">{formatCurrency(report.charge_cost)}</div>
+                    {unpricedNote && <div className="text-[9px] text-zinc-500 mt-0.5">{unpricedNote}</div>}
                   </div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5">按 0.311元/度 谷电</div>
-                </div>
+                )}
+
+                {report.avg_wh_km != null && (
+                  <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
+                    <div className="text-[10px] text-zinc-400">平均能耗</div>
+                    <div className="text-sm font-bold text-emerald-400 mt-0.5">{Math.round(report.avg_wh_km)} <span className="text-[10px] font-normal text-zinc-400">Wh/km</span></div>
+                  </div>
+                )}
+
+                {costPerKm != null && (
+                  <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
+                    <div className="text-[10px] text-zinc-400">折合每公里电费</div>
+                    <div className="text-sm font-bold text-blue-400 mt-0.5">¥{costPerKm.toFixed(3)}</div>
+                    <div className="text-[9px] text-zinc-500 mt-0.5">本月充电费用 ÷ 本月里程</div>
+                  </div>
+                )}
               </div>
 
               {/* 底部小签名 */}
               <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800/60">
-                <span className="font-mono">TeslaMate CN 数据中心</span>
-                <span>🌿 绿色低碳出行</span>
+                <span className="font-mono">TeslaMate CN</span>
+                <span>数据来自 TeslaMate 记录</span>
               </div>
             </div>
           )}

@@ -4,21 +4,20 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { FootprintDrivePath, VisitedLocation, DriveSummary, LifetimeStats } from '@/types';
 import { FootprintMap } from '@/components/map/FootprintMap';
-import { formatDistance, formatDuration, formatEnergy, formatDateTime, formatEfficiency } from '@/lib/formatters';
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Home, 
-  Compass, 
-  Route, 
-  Calendar, 
-  Navigation, 
-  Zap, 
-  Gauge, 
-  Clock, 
-  ChevronRight,
-  Sparkles
+import { formatDistance, formatDuration, formatDateTime, formatEfficiency, formatSpeed, formatOrDash, DASH } from '@/lib/formatters';
+import { FOOTPRINT_MAX_DRIVES } from '@/lib/constants';
+import { Empty } from '@/components/common/Empty';
+import {
+  ArrowLeft,
+  MapPin,
+  Home,
+  Compass,
+  Route,
+  Calendar,
+  Navigation,
+  ChevronRight
 } from 'lucide-react';
+import { sumKnown } from './helpers';
 
 export type FootprintPeriod = 'today' | 'yesterday' | '3d' | '7d' | '30d' | 'all';
 
@@ -44,7 +43,7 @@ export function FootprintAnalysisClientView({
     { key: '3d', label: '近3日' },
     { key: '7d', label: '近7日' },
     { key: '30d', label: '近30日' },
-    { key: 'all', label: '全部历史' },
+    { key: 'all', label: '全部已加载' },
   ];
 
   // 根据选定时间范围过滤轨迹与行程
@@ -79,12 +78,17 @@ export function FootprintAnalysisClientView({
     };
   }, [paths, drives, selectedPeriod]);
 
-  // 动态统计指标
-  const totalDistance = filteredDrives.reduce((sum, d) => sum + (d.distance || 0), 0);
-  const totalDurationMin = filteredDrives.reduce((sum, d) => sum + (d.duration_min || 0), 0);
-  const totalConsumption = filteredDrives.reduce((sum, d) => sum + (d.consumption_kwh || 0), 0);
-  const avgEfficiency = totalDistance > 0 ? Math.round((totalConsumption * 1000) / totalDistance) : 143;
-  const maxSpeed = Math.max(...filteredDrives.map((d) => d.speed_max || 0), 0);
+  // 动态统计指标：只累加已知值；没有已知值时为 null
+  const totalDistance = sumKnown(filteredDrives, (d) => d.distance);
+  const totalDurationMin = sumKnown(filteredDrives, (d) => d.duration_min);
+  // 平均能耗只用里程与耗电都已知的行程，保证分子分母口径一致
+  const efficiencyDrives = filteredDrives.filter((d) => d.distance != null && d.consumption_kwh != null);
+  const effDistance = sumKnown(efficiencyDrives, (d) => d.distance);
+  const effConsumption = sumKnown(efficiencyDrives, (d) => d.consumption_kwh);
+  const avgEfficiency =
+    effDistance != null && effDistance > 0 && effConsumption != null ? (effConsumption * 1000) / effDistance : null;
+  const knownSpeeds = filteredDrives.map((d) => d.speed_max).filter((v): v is number => v != null);
+  const maxSpeed = knownSpeeds.length > 0 ? Math.max(...knownSpeeds) : null;
 
   return (
     <div className="space-y-4 pb-24 pt-2 px-3 max-w-6xl mx-auto">
@@ -110,15 +114,11 @@ export function FootprintAnalysisClientView({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white">
-                  全景行车足迹大地图
+                  行车足迹地图
                 </h1>
-                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
-                  <Sparkles className="w-3 h-3" />
-                  高精空间轨迹
-                </span>
               </div>
               <p className="text-[11px] text-zinc-400 mt-0.5">
-                支持按今日、昨日、近3日、近7日等多时间范围交互式地图分析
+                地图最多绘制最近 {FOOTPRINT_MAX_DRIVES} 段行程的轨迹；下方明细与指标基于已加载的 {drives.length} 段行程
               </p>
             </div>
           </div>
@@ -148,14 +148,14 @@ export function FootprintAnalysisClientView({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs pt-1">
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60 flex flex-col justify-between">
             <div className="text-[11px] text-zinc-400">
-              {selectedPeriod === 'all' ? '探索行驶轨迹' : '探索行驶里程'}
+              所选时段行驶里程
             </div>
             <div className="text-base font-bold text-white mt-0.5">
-              {totalDistance.toFixed(1)} <span className="text-[10px] text-zinc-400 font-normal">km</span>
+              {formatOrDash(totalDistance, { digits: 1 })} <span className="text-[10px] text-zinc-400 font-normal">km</span>
             </div>
-            {selectedPeriod === 'all' && stats?.total_distance_km ? (
+            {selectedPeriod === 'all' && stats?.total_distance_km != null ? (
               <div className="text-[10px] text-zinc-500 mt-0.5">
-                车机总里程 {stats.total_distance_km.toFixed(1)} km
+                车辆总里程 {formatDistance(stats.total_distance_km)}
               </div>
             ) : null}
           </div>
@@ -168,22 +168,22 @@ export function FootprintAnalysisClientView({
           </div>
 
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
-            <div className="text-[11px] text-zinc-400">百公里平均能耗</div>
+            <div className="text-[11px] text-zinc-400">平均能耗</div>
             <div className="text-base font-bold text-emerald-400 mt-0.5">
-              {avgEfficiency} <span className="text-[10px] text-zinc-400 font-normal">Wh/km</span>
+              {formatOrDash(avgEfficiency, { digits: 0 })} <span className="text-[10px] text-zinc-400 font-normal">Wh/km</span>
             </div>
           </div>
 
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">最高行驶极速</div>
             <div className="text-base font-bold text-indigo-400 mt-0.5">
-              {maxSpeed} <span className="text-[10px] text-zinc-400 font-normal">km/h</span>
+              {formatOrDash(maxSpeed, { digits: 0 })} <span className="text-[10px] text-zinc-400 font-normal">km/h</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 🗺️ 全景高精地图分析中枢 */}
+      {/* 🗺️ 足迹地图 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-3.5 sm:p-5 shadow-2xl space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -222,11 +222,11 @@ export function FootprintAnalysisClientView({
         </div>
 
         {filteredDrives.length === 0 ? (
-          <div className="py-12 text-center text-zinc-500 space-y-1.5">
-            <Calendar className="w-8 h-8 mx-auto text-zinc-600 mb-1" />
-            <div className="text-sm font-medium text-zinc-400">选定时间范围内暂无行驶足迹</div>
-            <p className="text-xs text-zinc-600">请选择「近3日」或「全部历史」查看历史轨迹大图</p>
-          </div>
+          <Empty
+            icon={Calendar}
+            title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行驶足迹'}
+            hint={drives.length === 0 ? undefined : '请选择其他时间范围'}
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {filteredDrives.map((drive) => {
@@ -263,11 +263,11 @@ export function FootprintAnalysisClientView({
                     <div className="mt-2.5 space-y-1 text-xs">
                       <div className="flex items-center gap-1 text-zinc-300 truncate">
                         <span className="text-emerald-400 font-bold shrink-0">起</span>
-                        <span className="truncate">{drive.start_address}</span>
+                        <span className="truncate">{drive.start_address ?? DASH}</span>
                       </div>
                       <div className="flex items-center gap-1 text-zinc-400 truncate">
                         <span className="text-red-400 font-bold shrink-0">终</span>
-                        <span className="truncate">{drive.end_address}</span>
+                        <span className="truncate">{drive.end_address ?? DASH}</span>
                       </div>
                     </div>
                   </div>
@@ -276,8 +276,8 @@ export function FootprintAnalysisClientView({
                   <div className="mt-3 pt-2.5 border-t border-zinc-800/50 flex items-center justify-between text-[11px] text-zinc-400">
                     <div className="flex items-center gap-3">
                       <span>耗时 {formatDuration(drive.duration_min)}</span>
-                      <span>能耗 {drive.efficiency_wh_km} Wh/km</span>
-                      <span>极速 {drive.speed_max} km/h</span>
+                      <span>能耗 {formatEfficiency(drive.efficiency_wh_km)}</span>
+                      <span>极速 {formatSpeed(drive.speed_max)}</span>
                     </div>
 
                     <Link
@@ -302,6 +302,8 @@ export function FootprintAnalysisClientView({
           <span>常去地点驻留统计榜</span>
         </h2>
 
+        {locations.length === 0 && <Empty title="暂无常去地点数据" icon={MapPin} />}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {locations.map((loc, idx) => (
             <div
@@ -314,7 +316,7 @@ export function FootprintAnalysisClientView({
                 </span>
                 <div className="min-w-0">
                   <div className="font-bold text-white flex items-center gap-1.5 truncate">
-                    {loc.is_home && <Home className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+                    {loc.is_home === true && <Home className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
                     <span className="truncate">{loc.name}</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 mt-0.5">
@@ -324,7 +326,7 @@ export function FootprintAnalysisClientView({
               </div>
 
               <div className="text-right shrink-0 ml-2">
-                <div className="font-bold text-zinc-200">{loc.total_parking_hours} 小时</div>
+                <div className="font-bold text-zinc-200">{formatOrDash(loc.total_parking_hours, { digits: 1, unit: '小时', locale: true })}</div>
                 <div className="text-[10px] text-zinc-500 mt-0.5">累计驻留时长</div>
               </div>
             </div>

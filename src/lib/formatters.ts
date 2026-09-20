@@ -140,7 +140,12 @@ export function getCarStateInfo(state: string | null | undefined) {
       return { text: '已唤醒', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30' };
     case 'suspended':
       return { text: '准备睡眠', color: 'text-zinc-400', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
-    default:
+    case 'offline':
       return { text: '离线', color: 'text-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
+    case 'updating':
+      return { text: '升级中', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' };
+    default:
+      // 没有状态数据不等于离线
+      return { text: '状态未知', color: 'text-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
   }
 }

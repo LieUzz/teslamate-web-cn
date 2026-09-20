@@ -3,7 +3,7 @@
 import * as q from '../src/lib/queries';
 
 const redact = (v: unknown): unknown =>
-  v === undefined ? null : JSON.parse(
+  v === undefined ? null : process.env.SMOKE_VERBOSE === '1' ? v : JSON.parse(
     JSON.stringify(v, (k, val) =>
       ['latitude', 'longitude', 'vin', 'address', 'start_address', 'end_address', 'points', 'positions', 'name'].includes(k) && val != null
         ? Array.isArray(val) ? `[${val.length} items]` : '<redacted>'
@@ -15,7 +15,7 @@ async function main() {
   const run = async (name: string, fn: () => Promise<unknown>) => {
     const t = Date.now();
     const out = await fn();
-    const shown = Array.isArray(out) ? { count: out.length, first: redact(out[0]) } : redact(out);
+    const shown = Array.isArray(out) ? { count: out.length, first: redact(out[0]), ...(process.env.SMOKE_VERBOSE === '1' ? { all: out } : {}) } : redact(out);
     console.log(`\n=== ${name} (${Date.now() - t} ms)\n${JSON.stringify(shown, null, 1)}`);
   };
   await run('fetchCars', q.fetchCars);

@@ -1,9 +1,11 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { DASH } from '@/lib/formatters';
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  // null = 未知，显示 "--" 且不带单位
+  value: string | number | null;
   unit?: string;
   icon?: LucideIcon;
   subtext?: string;
@@ -23,6 +25,8 @@ export function StatCard({
   trend,
   highlight = false,
 }: StatCardProps) {
+  const unknown = value == null || (typeof value === 'number' && !Number.isFinite(value));
+
   return (
     <div
       className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-4 transition-all duration-200 border ${
@@ -42,9 +46,9 @@ export function StatCard({
 
       <div className="mt-2.5 flex items-baseline gap-1 overflow-hidden">
         <span className="text-xl sm:text-2xl font-bold tracking-tight text-white whitespace-nowrap truncate">
-          {value}
+          {unknown ? DASH : value}
         </span>
-        {unit && <span className="text-[11px] font-medium text-zinc-400 shrink-0">{unit}</span>}
+        {unit && !unknown && <span className="text-[11px] font-medium text-zinc-400 shrink-0">{unit}</span>}
       </div>
 
       {(subtext || trend) && (

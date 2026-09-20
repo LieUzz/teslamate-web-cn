@@ -16,8 +16,24 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
-import { DrivingRecordsByPeriod, RecordPeriod } from '@/types';
-import { formatDateTime } from '@/lib/formatters';
+import type { LucideIcon } from 'lucide-react';
+import { DrivingRecordItem, DrivingRecords, DrivingRecordsByPeriod, RecordPeriod } from '@/types';
+import { DASH, formatDateTime } from '@/lib/formatters';
+import { MERGE_MAX_GAP_MINUTES, RECORD_WINDOW_DAYS } from '@/lib/constants';
+import { Empty } from '@/components/common/Empty';
+
+type RecordTileKey = Exclude<keyof DrivingRecords, 'period' | 'drive_count' | 'extreme_temp'>;
+
+// 每个极值格的静态标题/单位：仅在该项为 null (无合格行程) 时使用，有数据时以服务端返回的为准
+const RECORD_TILES: { key: RecordTileKey; title: string; unit: string; icon: LucideIcon; color: string; iconBg: string }[] = [
+  { key: 'max_speed', title: '最高时速', unit: 'km/h', icon: Gauge, color: 'text-rose-400', iconBg: 'bg-rose-500/10 border-rose-500/20' },
+  { key: 'longest_distance', title: '单次最远行程', unit: 'km', icon: Navigation, color: 'text-blue-400', iconBg: 'bg-blue-500/10 border-blue-500/20' },
+  { key: 'longest_duration', title: '单次最长驾驶', unit: '', icon: Clock, color: 'text-indigo-400', iconBg: 'bg-indigo-500/10 border-indigo-500/20' },
+  { key: 'best_efficiency', title: '最佳能耗', unit: 'Wh/km', icon: Leaf, color: 'text-emerald-400', iconBg: 'bg-emerald-500/10 border-emerald-500/20' },
+  { key: 'max_power', title: '最大输出功率', unit: 'kW', icon: Zap, color: 'text-amber-400', iconBg: 'bg-amber-500/10 border-amber-500/20' },
+  { key: 'max_regen', title: '最大动能回收', unit: 'kW', icon: BatteryCharging, color: 'text-cyan-400', iconBg: 'bg-cyan-500/10 border-cyan-500/20' },
+  { key: 'max_ascent', title: '单次最大海拔爬升', unit: 'm', icon: Mountain, color: 'text-teal-400', iconBg: 'bg-teal-500/10 border-teal-500/20' },
+];
 
 interface DrivingRecordsCardProps {
   records: DrivingRecordsByPeriod;
@@ -27,13 +43,15 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
   const [activePeriod, setActivePeriod] = useState<RecordPeriod>('all');
 
   const periodOptions: { key: RecordPeriod; label: string }[] = [
-    { key: 'month', label: '本月' },
-    { key: 'half_year', label: '近半年' },
-    { key: 'year', label: '近一年' },
+    // 均为滚动窗口 (天数来自 RECORD_WINDOW_DAYS)，不是自然月/年
+    { key: 'month', label: `近 ${RECORD_WINDOW_DAYS.month} 天` },
+    { key: 'half_year', label: `近 ${RECORD_WINDOW_DAYS.half_year} 天` },
+    { key: 'year', label: `近 ${RECORD_WINDOW_DAYS.year} 天` },
     { key: 'all', label: '全部' },
   ];
 
-  const currentRecords = records[activePeriod] || records.all;
+  const currentRecords = records[activePeriod];
+  const activeLabel = periodOptions.find((o) => o.key === activePeriod)?.label ?? '';
 
   return (
     <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-5 md:p-6 backdrop-blur-xl shadow-xl space-y-6">
@@ -52,7 +70,7 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              10分钟内临时锁车已自动合并为连贯行程并统计极值
+              {MERGE_MAX_GAP_MINUTES} 分钟内的临时停车已自动合并为连贯行程并统计极值
             </p>
           </div>
         </div>
@@ -75,169 +93,114 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
         </div>
       </div>
 
-      {/* 极值指标网格 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. 最高极速 */}
-        <RecordGridItem
-          icon={<Gauge className="w-4 h-4 text-rose-400" />}
-          iconBg="bg-rose-500/10 border-rose-500/20"
-          title={currentRecords.max_speed.title}
-          value={currentRecords.max_speed.formatted_value}
-          unit={currentRecords.max_speed.unit}
-          subText={currentRecords.max_speed.sub_text}
-          date={currentRecords.max_speed.date}
-          driveId={currentRecords.max_speed.drive_id}
-          secondary={currentRecords.max_speed.secondary_value}
-          valueColor="text-rose-400"
+      {/* 极值指标网格：该周期没有行程时显示空状态，绝不回退到其他周期 */}
+      {currentRecords.drive_count === 0 ? (
+        <Empty
+          title="该时间范围内暂无行程"
+          hint={activePeriod === 'all' ? 'TeslaMate 尚未记录到任何行程' : `「${activeLabel}」内没有行程记录，可切换其他时间范围`}
         />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {RECORD_TILES.map((tile) => {
+            const item = currentRecords[tile.key];
+            const Icon = tile.icon;
+            return (
+              <RecordGridItem
+                key={tile.key}
+                icon={<Icon className={`w-4 h-4 ${tile.color}`} />}
+                iconBg={tile.iconBg}
+                title={item?.title ?? tile.title}
+                unit={item?.unit ?? tile.unit}
+                item={item}
+                valueColor={tile.color}
+              />
+            );
+          })}
 
-        {/* 2. 单次最远里程 */}
-        <RecordGridItem
-          icon={<Navigation className="w-4 h-4 text-blue-400" />}
-          iconBg="bg-blue-500/10 border-blue-500/20"
-          title={currentRecords.longest_distance.title}
-          value={currentRecords.longest_distance.formatted_value}
-          unit={currentRecords.longest_distance.unit}
-          subText={currentRecords.longest_distance.sub_text}
-          date={currentRecords.longest_distance.date}
-          driveId={currentRecords.longest_distance.drive_id}
-          secondary={currentRecords.longest_distance.secondary_value}
-          valueColor="text-blue-400"
-        />
-
-        {/* 3. 单次最长耗时 */}
-        <RecordGridItem
-          icon={<Clock className="w-4 h-4 text-indigo-400" />}
-          iconBg="bg-indigo-500/10 border-indigo-500/20"
-          title={currentRecords.longest_duration.title}
-          value={currentRecords.longest_duration.formatted_value}
-          unit={currentRecords.longest_duration.unit}
-          subText={currentRecords.longest_duration.sub_text}
-          date={currentRecords.longest_duration.date}
-          driveId={currentRecords.longest_duration.drive_id}
-          secondary={currentRecords.longest_duration.secondary_value}
-          valueColor="text-indigo-400"
-        />
-
-        {/* 4. 黄金右脚 / 最佳能耗 */}
-        <RecordGridItem
-          icon={<Leaf className="w-4 h-4 text-emerald-400" />}
-          iconBg="bg-emerald-500/10 border-emerald-500/20"
-          title={currentRecords.best_efficiency.title}
-          value={currentRecords.best_efficiency.formatted_value}
-          unit={currentRecords.best_efficiency.unit}
-          subText={currentRecords.best_efficiency.sub_text}
-          date={currentRecords.best_efficiency.date}
-          driveId={currentRecords.best_efficiency.drive_id}
-          secondary={currentRecords.best_efficiency.secondary_value}
-          valueColor="text-emerald-400"
-        />
-
-        {/* 5. 最大瞬时输出功率 */}
-        <RecordGridItem
-          icon={<Zap className="w-4 h-4 text-amber-400" />}
-          iconBg="bg-amber-500/10 border-amber-500/20"
-          title={currentRecords.max_power.title}
-          value={currentRecords.max_power.formatted_value}
-          unit={currentRecords.max_power.unit}
-          subText={currentRecords.max_power.sub_text}
-          date={currentRecords.max_power.date}
-          driveId={currentRecords.max_power.drive_id}
-          valueColor="text-amber-400"
-        />
-
-        {/* 6. 最强动能回收 */}
-        <RecordGridItem
-          icon={<BatteryCharging className="w-4 h-4 text-cyan-400" />}
-          iconBg="bg-cyan-500/10 border-cyan-500/20"
-          title={currentRecords.max_regen.title}
-          value={currentRecords.max_regen.formatted_value}
-          unit={currentRecords.max_regen.unit}
-          subText={currentRecords.max_regen.sub_text}
-          date={currentRecords.max_regen.date}
-          driveId={currentRecords.max_regen.drive_id}
-          valueColor="text-cyan-400"
-        />
-
-        {/* 7. 单次最大海拔爬升 */}
-        <RecordGridItem
-          icon={<Mountain className="w-4 h-4 text-teal-400" />}
-          iconBg="bg-teal-500/10 border-teal-500/20"
-          title={currentRecords.max_ascent.title}
-          value={currentRecords.max_ascent.formatted_value}
-          unit={currentRecords.max_ascent.unit}
-          subText={currentRecords.max_ascent.sub_text}
-          date={currentRecords.max_ascent.date}
-          driveId={currentRecords.max_ascent.drive_id}
-          valueColor="text-teal-400"
-        />
-
-        {/* 8. 极限气温出行 */}
-        <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-400 font-medium">极限气温出行</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span className="w-2 h-2 rounded-full bg-orange-400"></span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 my-2">
-            <div className="bg-zinc-900/60 rounded-lg p-2 border border-cyan-500/10">
-              <div className="flex items-center gap-1 text-[11px] text-cyan-400">
-                <ThermometerSnowflake className="w-3 h-3" />
-                最低温
-              </div>
-              <div className="text-base font-bold text-zinc-100 mt-1 font-mono">
-                {currentRecords.extreme_temp.lowest.formatted_value} <span className="text-xs font-normal text-zinc-400">°C</span>
+          {/* 8. 极限气温出行 */}
+          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-400 font-medium">极限气温出行</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span className="w-2 h-2 rounded-full bg-orange-400"></span>
               </div>
             </div>
 
-            <div className="bg-zinc-900/60 rounded-lg p-2 border border-orange-500/10">
-              <div className="flex items-center gap-1 text-[11px] text-orange-400">
-                <ThermometerSun className="w-3 h-3" />
-                最高温
-              </div>
-              <div className="text-base font-bold text-zinc-100 mt-1 font-mono">
-                {currentRecords.extreme_temp.highest.formatted_value} <span className="text-xs font-normal text-zinc-400">°C</span>
-              </div>
+            <div className="grid grid-cols-2 gap-2 my-2">
+              <TempTile
+                label="最低温"
+                icon={<ThermometerSnowflake className="w-3 h-3" />}
+                color="text-cyan-400"
+                border="border-cyan-500/10"
+                item={currentRecords.extreme_temp.lowest}
+              />
+              <TempTile
+                label="最高温"
+                icon={<ThermometerSun className="w-3 h-3" />}
+                color="text-orange-400"
+                border="border-orange-500/10"
+                item={currentRecords.extreme_temp.highest}
+              />
             </div>
-          </div>
 
-          <div className="text-[11px] text-zinc-400 truncate">
-            冷暖随行 · 纯电无畏气候
+            <div className="text-[11px] text-zinc-400 truncate">按行程平均车外温度统计</div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
+}
+
+// 极限气温的单格；无温度数据的周期显示 "--"
+function TempTile({
+  label,
+  icon,
+  color,
+  border,
+  item,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  border: string;
+  item: DrivingRecordItem | null;
+}) {
+  const body = (
+    <div className={`bg-zinc-900/60 rounded-lg p-2 border ${border} h-full`}>
+      <div className={`flex items-center gap-1 text-[11px] ${color}`}>
+        {icon}
+        {label}
+      </div>
+      <div className="text-base font-bold text-zinc-100 mt-1 font-mono">
+        {item ? item.formatted_value : DASH} <span className="text-xs font-normal text-zinc-400">°C</span>
+      </div>
+      <div className="text-[10px] text-zinc-500 mt-0.5 truncate">{item ? formatDateTime(item.date) : '暂无数据'}</div>
+    </div>
+  );
+  if (item?.drive_id != null) {
+    return (
+      <Link href={`/drives/${item.drive_id}`} className="block">
+        {body}
+      </Link>
+    );
+  }
+  return body;
 }
 
 interface RecordGridItemProps {
   icon: React.ReactNode;
   iconBg: string;
   title: string;
-  value: string;
   unit: string;
-  subText?: string;
-  date: string;
-  driveId?: number;
-  secondary?: string;
+  item: DrivingRecordItem | null;
   valueColor: string;
 }
 
-function RecordGridItem({
-  icon,
-  iconBg,
-  title,
-  value,
-  unit,
-  subText,
-  date,
-  driveId,
-  secondary,
-  valueColor,
-}: RecordGridItemProps) {
+function RecordGridItem({ icon, iconBg, title, unit, item, valueColor }: RecordGridItemProps) {
+  const driveId = item?.drive_id;
+  const secondary = item?.secondary_value;
+  const subText = item?.sub_text;
   const content = (
     <div className="group bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700 hover:bg-zinc-950/90 transition-all h-full">
       <div>
@@ -251,8 +214,8 @@ function RecordGridItem({
 
         {/* 极值主数值 */}
         <div className="mt-2.5 flex items-baseline gap-1.5">
-          <span className={`text-2xl font-black font-mono tracking-tight ${valueColor}`}>
-            {value}
+          <span className={`text-2xl font-black font-mono tracking-tight ${item ? valueColor : 'text-zinc-500'}`}>
+            {item ? item.formatted_value : DASH}
           </span>
           {unit && <span className="text-xs font-medium text-zinc-400">{unit}</span>}
         </div>
@@ -267,12 +230,12 @@ function RecordGridItem({
 
       {/* 底部发生时间与附属标签 */}
       <div className="mt-3 pt-2.5 border-t border-zinc-800/60 flex items-center justify-between text-[10px] text-zinc-400">
-        <span className="truncate">{formatDateTime(date)}</span>
+        <span className="truncate">{item ? formatDateTime(item.date) : '暂无数据'}</span>
         {secondary ? (
           <span className="text-[10px] text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 truncate max-w-[120px]">
             {secondary}
           </span>
-        ) : driveId ? (
+        ) : driveId != null ? (
           <span className="inline-flex items-center gap-0.5 text-zinc-400 group-hover:text-zinc-200 transition-colors">
             查看行程 <ChevronRight className="w-3 h-3" />
           </span>
@@ -281,7 +244,7 @@ function RecordGridItem({
     </div>
   );
 
-  if (driveId) {
+  if (driveId != null) {
     return (
       <Link href={`/drives/${driveId}`} className="block h-full">
         {content}

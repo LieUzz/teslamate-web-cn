@@ -1,13 +1,17 @@
 import React from 'react';
 import Link from 'next/link';
 import { fetchTemperatureStats } from '@/lib/queries';
-import { ArrowLeft, ThermometerSun, Sun, Snowflake, Zap } from 'lucide-react';
+import { ArrowLeft, ThermometerSun } from 'lucide-react';
 import { TemperatureCharts } from '@/components/charts/TemperatureCharts';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TemperaturePage() {
   const points = await fetchTemperatureStats();
+
+  // 实测温区取自数据本身；没有数据就不显示
+  const temps = points.map((p) => p.temp).filter((t) => Number.isFinite(t));
+  const tempRange = temps.length > 0 ? { min: Math.min(...temps), max: Math.max(...temps) } : null;
 
   return (
     <div className="space-y-4 pb-24 pt-2 px-3 max-w-4xl mx-auto">
@@ -32,12 +36,14 @@ export default async function TemperaturePage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">气温对能耗与续航影响</h1>
-              <p className="text-xs text-zinc-400 mt-0.5">不同室外气温下的实测百公里能耗 (Wh/km) 变化规律</p>
+              <p className="text-xs text-zinc-400 mt-0.5">不同室外气温下的实测平均能耗 (Wh/km)</p>
             </div>
           </div>
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-            实测温区 25°C ~ 36°C
-          </span>
+          {tempRange && (
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap">
+              实测温区 {tempRange.min}°C ~ {tempRange.max}°C
+            </span>
+          )}
         </div>
 
         {/* 📈 气温与能耗散点/走势图 */}
@@ -46,11 +52,10 @@ export default async function TemperaturePage() {
         </div>
       </div>
 
-      {/* 气温能耗知识科普 */}
+      {/* 口径说明 */}
       <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl p-4 text-xs text-zinc-400 space-y-1.5">
-        <div className="font-semibold text-zinc-200">💡 特斯拉气温能耗特性</div>
-        <p>• <strong>黄金温区 (20°C~28°C)</strong>：电池无需额外热管理，空调负荷轻，能效最高（通常在 120~145 Wh/km）。</p>
-        <p>• <strong>高温酷暑 (&gt;32°C)</strong>：座舱大功率制冷及电池组主动水冷运转，能耗会轻微上升 10%~15%（约 155~175 Wh/km）。</p>
+        <div className="font-semibold text-zinc-200">💡 数据口径</div>
+        <p>• 每个温度点为该室外平均气温下所有有记录行程的平均能耗；行程数少的温度点波动较大，仅供参考。</p>
       </div>
     </div>
   );

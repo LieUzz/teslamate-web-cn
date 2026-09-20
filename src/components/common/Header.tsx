@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Car } from '@/types';
 import { useCarStore } from '@/store/useCarStore';
-import { getCarStateInfo } from '@/lib/formatters';
+import { getCarStateInfo, formatPercent, formatOrDash } from '@/lib/formatters';
 import { BatteryCharging, ChevronDown, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,7 +25,11 @@ export function Header({ cars }: HeaderProps) {
   const { selectedCarId, setSelectedCarId } = useCarStore();
   const activeCar = cars.find((c) => c.id === selectedCarId) || cars[0];
 
-  const stateInfo = getCarStateInfo(activeCar?.state);
+  // state 为 null 表示没有任何状态记录，不能当作"离线"
+  const stateInfo =
+    activeCar?.state == null
+      ? { text: '状态未知', color: 'text-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' }
+      : getCarStateInfo(activeCar.state);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md">
@@ -71,7 +75,7 @@ export function Header({ cars }: HeaderProps) {
               >
                 {cars.map((car) => (
                   <option key={car.id} value={car.id}>
-                    {car.name || `${car.model}`}
+                    {car.name ?? car.marketing_name ?? (car.model ? `Model ${car.model}` : `#${car.id}`)}
                   </option>
                 ))}
               </select>
@@ -85,16 +89,16 @@ export function Header({ cars }: HeaderProps) {
           <div className="flex items-center gap-2.5">
             {/* 状态胶囊 */}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${stateInfo.bg} ${stateInfo.color} ${stateInfo.border}`}>
-              <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
+              <span className={`w-2 h-2 rounded-full bg-current ${activeCar.state == null ? '' : 'animate-pulse'}`} />
               <span>{stateInfo.text}</span>
             </div>
 
             {/* 电池与估算续航 */}
             <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-300 bg-zinc-900/60 px-3 py-1.5 rounded-lg border border-zinc-800">
               <BatteryCharging className="w-4 h-4 text-emerald-400" />
-              <span className="font-semibold text-white">{activeCar.battery_level}%</span>
+              <span className="font-semibold text-white">{formatPercent(activeCar.battery_level)}</span>
               <span className="text-zinc-500">|</span>
-              <span>{activeCar.ideal_battery_range_km} km</span>
+              <span>{formatOrDash(activeCar.range_km, { digits: 0, unit: 'km' })}</span>
             </div>
 
             {/* 刷新状态 */}

@@ -3,12 +3,17 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { TemperatureEfficiencyPoint } from '@/types';
+import { Empty } from '@/components/common/Empty';
 
 interface TemperatureChartsProps {
   points: TemperatureEfficiencyPoint[];
 }
 
 export function TemperatureCharts({ points }: TemperatureChartsProps) {
+  if (!points || points.length === 0) {
+    return <Empty as="chart" title="暂无气温与能耗关联数据" />;
+  }
+
   const temps = points.map((p) => `${p.temp}°C`);
   const whs = points.map((p) => p.avg_wh_km);
   const counts = points.map((p) => p.drive_count);
@@ -43,8 +48,7 @@ export function TemperatureCharts({ points }: TemperatureChartsProps) {
       {
         type: 'value',
         name: '能耗 (Wh/km)',
-        min: 100,
-        max: 220,
+        scale: true,
         nameTextStyle: { color: '#71717a', fontSize: 10 },
         splitLine: { lineStyle: { color: '#27272a' } },
         axisLabel: { color: '#71717a', fontSize: 10 },

@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { ChargePoint } from '@/types';
+import { Empty } from '@/components/common/Empty';
 
 interface ChargeDetailChartsProps {
   points: ChargePoint[];
@@ -10,19 +11,16 @@ interface ChargeDetailChartsProps {
 
 export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
   if (!points || points.length === 0) {
-    return (
-      <div className="py-12 text-center text-xs text-zinc-500">
-        交流慢充按恒定 7.0 kW 功率注入（无异常断冲或功率波动）
-      </div>
-    );
+    return <Empty as="chart" title="该次充电暂无采样数据" />;
   }
 
   const times = points.map((p) => {
     const d = new Date(p.date);
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   });
-  const powers = points.map((p) => p.charger_power);
-  const socs = points.map((p) => p.battery_level);
+  // 缺失采样保持 null，图上显示为断点
+  const powers = points.map((p) => p.charger_power ?? null);
+  const socs = points.map((p) => p.battery_level ?? null);
 
   const option = {
     backgroundColor: 'transparent',
@@ -73,6 +71,7 @@ export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
         name: '充电功率 (kW)',
         type: 'line',
         data: powers,
+        connectNulls: false,
         smooth: true,
         itemStyle: { color: '#10b981' },
         lineStyle: { width: 2 },
@@ -95,6 +94,7 @@ export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
         type: 'line',
         yAxisIndex: 1,
         data: socs,
+        connectNulls: false,
         smooth: true,
         itemStyle: { color: '#3b82f6' },
         lineStyle: { width: 2 },

@@ -1,3 +1,30 @@
+## Fork notes (LieUzz)
+
+This fork removes every hardcoded, default and demo value from upstream. Every
+number shown comes from the TeslaMate database, MQTT, or explicit configuration;
+anything unknown renders as `--` / "暂无数据".
+
+- No demo mode, no mock data, no writes to the TeslaMate database (the pool
+  enforces `default_transaction_read_only`). Use a read-only Postgres role.
+- Energy follows TeslaMate's own definition: range delta x `cars.efficiency`,
+  using `settings.preferred_range`. Until TeslaMate has derived the car's
+  efficiency (after the first charges) consumption is shown as unknown.
+- Charge cost: TOU table of teslamate-chinese-dashboards > TeslaMate's
+  `charging_processes.cost` (geofence pricing) > configured price (marked 估算).
+- Optional configuration, none of which has a default: `AMAP_KEY`,
+  `DELIVERY_DATE`, `FUEL_PRICE_CNY_PER_LITRE`, `FUEL_CONSUMPTION_L_PER_100KM`,
+  `ELECTRICITY_PRICE_CNY_PER_KWH`, `BATTERY_ORIGINAL_RANGE_KM`,
+  `HOME_GEOFENCE_NAME`, `MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_NAMESPACE`.
+- Checks: `pnpm typecheck`, `pnpm check:hardcodes`. Data-layer smoke test
+  against a throwaway Postgres: load a schema-only dump of TeslaMate, then
+  `scripts/smoke-seed.sql` (synthetic data with hand-computable answers), and
+  run `npx tsx scripts/smoke-data-layer.ts` with `DATABASE_*` pointing at it.
+
+The rest of this README is upstream's and may describe removed features
+(demo mode, hardcoded tariffs).
+
+---
+
 <div align="center">
 
 # ⚡ TeslaMate CN (车友专属现代看板)
