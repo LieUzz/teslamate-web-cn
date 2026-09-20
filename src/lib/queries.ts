@@ -1,4 +1,4 @@
-import { getDbPool } from './db';
+import { getDbPool, getTouCostJoin } from './db';
 import { getCarMqttState } from './mqtt';
 import { 
   Car, 
@@ -684,6 +684,7 @@ export async function fetchParkingDetail(parkingId: number): Promise<ParkingDeta
 export async function fetchCharges(carId?: number, limit = 50, offset = 0): Promise<ChargeSummary[]> {
   if (isDemo()) return MOCK_CHARGES;
   const pool = getDbPool();
+  const touJoin = await getTouCostJoin(pool);
   if (!pool) return [];
 
   try {
@@ -703,7 +704,7 @@ export async function fetchCharges(carId?: number, limit = 50, offset = 0): Prom
         COALESCE(tc.cost_tou, cp.cost, ROUND((cp.charge_energy_added * 0.311)::numeric, 2)) as cost,
         COALESCE(g.name, addr.name, addr.road, '家') as location_name
       FROM charging_processes cp
-      LEFT JOIN charging_processes_tou_cost tc ON cp.id = tc.charging_process_id
+      ${touJoin}
       LEFT JOIN addresses addr ON cp.address_id = addr.id
       LEFT JOIN geofences g ON cp.geofence_id = g.id
       WHERE ($1::int IS NULL OR cp.car_id = $1)
@@ -935,6 +936,7 @@ export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthI
 export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport[]> {
   if (isDemo()) return MOCK_MONTHLY_REPORTS;
   const pool = getDbPool();
+  const touJoin = await getTouCostJoin(pool);
   if (!pool) return [];
 
   try {
@@ -956,7 +958,7 @@ export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport
           ROUND(COALESCE(SUM(cp.charge_energy_added), 0)::numeric, 1) as charge_energy_kwh,
           ROUND(COALESCE(SUM(COALESCE(tc.cost_tou, cp.cost, cp.charge_energy_added * 0.311)), 0)::numeric, 2) as charge_cost
         FROM charging_processes cp
-        LEFT JOIN charging_processes_tou_cost tc ON cp.id = tc.charging_process_id
+        ${touJoin}
         WHERE ($1::int IS NULL OR cp.car_id = $1)
         GROUP BY TO_CHAR(cp.start_date, 'YYYY-MM')
       )
@@ -1086,6 +1088,7 @@ export async function fetchVisitedLocations(carId?: number): Promise<VisitedLoca
 export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats> {
   if (isDemo()) return MOCK_LIFETIME_STATS;
   const pool = getDbPool();
+  const touJoin = await getTouCostJoin(pool);
   if (!pool) return MOCK_LIFETIME_STATS;
 
   try {
@@ -1101,7 +1104,7 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
         (SELECT ROUND(COALESCE(SUM(charge_energy_added), 0)::numeric, 1) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charge_energy_added,
         (SELECT ROUND(COALESCE(SUM(COALESCE(tc.cost_tou, cp.cost, cp.charge_energy_added * 0.311)), 0)::numeric, 2) 
          FROM charging_processes cp 
-         LEFT JOIN charging_processes_tou_cost tc ON cp.id = tc.charging_process_id
+         ${touJoin}
          WHERE ($1::int IS NULL OR cp.car_id = $1)) as total_charge_cost,
         (SELECT ROUND(COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'online'), 0)::numeric, 1) 
          FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sentry_hours,

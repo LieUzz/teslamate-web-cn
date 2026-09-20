@@ -43,3 +43,21 @@ export function getDbPool(): Pool | null {
     return null;
   }
 }
+
+// charging_processes_tou_cost 由 teslamate-chinese-dashboards 的分时电价功能创建，
+// 未配置分时电价的库里没有这张表；不存在时用空子查询代替，费用回退到 cp.cost
+const TOU_JOIN = 'LEFT JOIN charging_processes_tou_cost tc ON cp.id = tc.charging_process_id';
+const TOU_JOIN_EMPTY =
+  'LEFT JOIN (SELECT NULL::int AS charging_process_id, NULL::numeric AS cost_tou WHERE false) tc ON cp.id = tc.charging_process_id';
+let touTableExists = false;
+
+export async function getTouCostJoin(p: Pool | null): Promise<string> {
+  if (touTableExists || !p) return touTableExists ? TOU_JOIN : TOU_JOIN_EMPTY;
+  try {
+    const res = await p.query("SELECT to_regclass('public.charging_processes_tou_cost') IS NOT NULL AS ok");
+    touTableExists = res.rows[0]?.ok === true;
+  } catch {
+    touTableExists = false;
+  }
+  return touTableExists ? TOU_JOIN : TOU_JOIN_EMPTY;
+}

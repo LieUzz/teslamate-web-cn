@@ -17,7 +17,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+# the repo has no public/ dir; the runner stage copies it unconditionally
+RUN mkdir -p public && pnpm build
 
 # ---- 生产运行阶段 ----
 FROM node:20-alpine AS runner
