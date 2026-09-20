@@ -40,6 +40,75 @@ import {
 
 const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
+// 非演示模式下绝不返回 mock 数据：无数据或查询失败时返回明确的空值，避免把演示数据当成真实数据展示
+const emptyRecordItem = (title: string, unit: string): DrivingRecordItem => ({
+  value: 0,
+  formatted_value: '--',
+  unit,
+  title,
+  sub_text: '暂无数据',
+  date: '',
+});
+
+const emptyDrivingRecordsFor = (period: RecordPeriod): DrivingRecords => ({
+  period,
+  max_speed: emptyRecordItem('最高时速', 'km/h'),
+  longest_distance: emptyRecordItem('最远行程', 'km'),
+  longest_duration: emptyRecordItem('最长驾驶', ''),
+  best_efficiency: emptyRecordItem('最佳能耗', 'Wh/km'),
+  max_power: emptyRecordItem('最大功率', 'kW'),
+  max_regen: emptyRecordItem('最大回收', 'kW'),
+  max_ascent: emptyRecordItem('最大爬升', 'm'),
+  extreme_temp: {
+    lowest: emptyRecordItem('最低气温', '°C'),
+    highest: emptyRecordItem('最高气温', '°C'),
+  },
+});
+
+const EMPTY_DRIVING_RECORDS: DrivingRecordsByPeriod = {
+  month: emptyDrivingRecordsFor('month'),
+  half_year: emptyDrivingRecordsFor('half_year'),
+  year: emptyDrivingRecordsFor('year'),
+  all: emptyDrivingRecordsFor('all'),
+};
+
+const EMPTY_LIFETIME_STATS: LifetimeStats = {
+  total_drives: 0,
+  raw_total_drives: 0,
+  total_distance_km: 0,
+  logged_distance_km: 0,
+  total_drive_duration_hours: 0,
+  total_energy_kwh: 0,
+  avg_efficiency_wh_km: 0,
+  total_charges: 0,
+  total_charge_energy_added: 0,
+  total_charge_cost: 0,
+  sentry_duration_hours: 0,
+  sleep_duration_hours: 0,
+};
+
+const EMPTY_BATTERY_HEALTH: BatteryHealthInfo = {
+  nominal_full_pack_kwh: 0,
+  current_usable_pack_kwh: 0,
+  health_percent: 0,
+  estimated_full_range_km: 0,
+  original_full_range_km: 0,
+  degradation_percent: 0,
+  slow_charge_count: 0,
+  fast_charge_count: 0,
+  slow_charge_percent: 0,
+  cycle_count: 0,
+};
+
+const emptyCarMilestones = (carId: number): CarMilestonesData => ({
+  car_id: carId,
+  delivery_date: '',
+  days_since_delivery: 0,
+  current_odometer: 0,
+  daily_avg_km: 0,
+  milestones: [],
+});
+
 // 生产环境安全兜底空车（不含任何伪造地点与假VIN）
 const DEFAULT_EMPTY_CAR: Car = {
   id: 1,
@@ -509,7 +578,7 @@ export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | n
 export async function fetchParkings(carId?: number, limit = 50, offset = 0): Promise<ParkingSummary[]> {
   if (isDemo()) return MOCK_PARKING;
   const pool = getDbPool();
-  if (!pool) return MOCK_PARKING;
+  if (!pool) return [];
 
   try {
     const query = `
@@ -878,7 +947,7 @@ export async function fetchEnergyBreakdown(carId?: number): Promise<EnergyBreakd
 export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthInfo> {
   if (isDemo()) return MOCK_BATTERY_HEALTH;
   const pool = getDbPool();
-  if (!pool) return MOCK_BATTERY_HEALTH;
+  if (!pool) return EMPTY_BATTERY_HEALTH;
 
   try {
     const q = `
@@ -1089,7 +1158,7 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
   if (isDemo()) return MOCK_LIFETIME_STATS;
   const pool = getDbPool();
   const touJoin = await getTouCostJoin(pool);
-  if (!pool) return MOCK_LIFETIME_STATS;
+  if (!pool) return EMPTY_LIFETIME_STATS;
 
   try {
     const statsQuery = `
@@ -1149,7 +1218,7 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
     };
   } catch (err) {
     console.error('fetchLifetimeStats error:', err);
-    return MOCK_LIFETIME_STATS;
+    return EMPTY_LIFETIME_STATS;
   }
 }
 
@@ -1159,12 +1228,12 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
 export async function fetchDrivingRecords(carId?: number): Promise<DrivingRecordsByPeriod> {
   if (isDemo()) return MOCK_DRIVING_RECORDS;
   const pool = getDbPool();
-  if (!pool) return MOCK_DRIVING_RECORDS;
+  if (!pool) return EMPTY_DRIVING_RECORDS;
 
   try {
     // 1. 获取所有合并后的完整行程
     const allMergedDrives = await fetchDrives(carId, 1000, 0, true);
-    if (!allMergedDrives || allMergedDrives.length === 0) return MOCK_DRIVING_RECORDS;
+    if (!allMergedDrives || allMergedDrives.length === 0) return EMPTY_DRIVING_RECORDS;
 
     const now = Date.now();
     const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
@@ -1304,7 +1373,7 @@ export async function fetchDrivingRecords(carId?: number): Promise<DrivingRecord
     };
   } catch (err) {
     console.error('fetchDrivingRecords error:', err);
-    return MOCK_DRIVING_RECORDS;
+    return EMPTY_DRIVING_RECORDS;
   }
 }
 
@@ -1429,7 +1498,7 @@ export async function fetchFootprintDrives(carId?: number): Promise<FootprintDri
 export async function fetchCarMilestones(carId = 1): Promise<CarMilestonesData> {
   if (isDemo()) return MOCK_CAR_MILESTONES;
   const pool = getDbPool();
-  if (!pool) return MOCK_CAR_MILESTONES;
+  if (!pool) return emptyCarMilestones(carId ?? 0);
 
   try {
     // 1. 获取提车日期 (先查 car_metadata 表，若无则默认 2026-08-16)
@@ -1545,7 +1614,7 @@ export async function fetchCarMilestones(carId = 1): Promise<CarMilestonesData> 
     };
   } catch (err) {
     console.error('fetchCarMilestones error:', err);
-    return MOCK_CAR_MILESTONES;
+    return emptyCarMilestones(carId ?? 0);
   }
 }
 
