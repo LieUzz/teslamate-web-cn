@@ -11,9 +11,9 @@ anything unknown renders as `--` / "暂无数据".
   efficiency (after the first charges) consumption is shown as unknown.
 - Charge cost: TOU table of teslamate-chinese-dashboards > TeslaMate's
   `charging_processes.cost` (geofence pricing) > configured price (marked 估算).
+- The petrol-car comparison module ("省了多少油钱") has been removed.
 - Optional configuration, none of which has a default: `AMAP_KEY`,
-  `DELIVERY_DATE`, `FUEL_PRICE_CNY_PER_LITRE`, `FUEL_CONSUMPTION_L_PER_100KM`,
-  `ELECTRICITY_PRICE_CNY_PER_KWH`, `BATTERY_ORIGINAL_RANGE_KM`,
+  `DELIVERY_DATE`, `ELECTRICITY_PRICE_CNY_PER_KWH`, `BATTERY_ORIGINAL_RANGE_KM`,
   `HOME_GEOFENCE_NAME`, `MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_NAMESPACE`.
 - Checks: `pnpm typecheck`, `pnpm check:hardcodes`. Data-layer smoke test
   against a throwaway Postgres: load a schema-only dump of TeslaMate, then

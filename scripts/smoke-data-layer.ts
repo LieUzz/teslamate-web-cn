@@ -30,7 +30,6 @@ async function main() {
   await run('fetchTemperatureStats', () => q.fetchTemperatureStats());
   await run('fetchVisitedLocations', () => q.fetchVisitedLocations());
   await run('fetchLifetimeStats', () => q.fetchLifetimeStats());
-  await run('fetchSavingsAnalysis', () => q.fetchSavingsAnalysis());
   await run('fetchDrivingRecords', async () => (await q.fetchDrivingRecords()).all);
   await run('fetchFootprintDrives', () => q.fetchFootprintDrives());
   await run('fetchCarMilestones', () => q.fetchCarMilestones());

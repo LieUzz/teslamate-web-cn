@@ -30,9 +30,6 @@ export const BATTERY_HEALTH_MIN_SOC_DELTA = 10;
 // 取最近 N 次合格充电的中位数作为"当前容量"
 export const BATTERY_HEALTH_RECENT_SAMPLES = 10;
 
-// 汽油燃烧的 CO₂ 排放系数 (kg/L)
-export const CO2_KG_PER_LITRE_PETROL = 2.31;
-
 // 有记录的天数少于该值时，不计算"近期日均里程"，也不据此预测
 export const MIN_LOGGED_DAYS_FOR_DAILY_AVG = 7;
 

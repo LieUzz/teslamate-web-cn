@@ -29,8 +29,6 @@ function readDate(name: string): string | null {
 
 export interface AppConfig {
   deliveryDate: string | null;
-  fuelPriceCnyPerLitre: number | null;
-  fuelConsumptionLPer100km: number | null;
   electricityPriceCnyPerKwh: number | null;
   batteryOriginalRangeKm: number | null;
   homeGeofenceName: string | null;
@@ -41,8 +39,6 @@ export interface AppConfig {
 export function getConfig(): AppConfig {
   return {
     deliveryDate: readDate('DELIVERY_DATE'),
-    fuelPriceCnyPerLitre: readPositiveNumber('FUEL_PRICE_CNY_PER_LITRE'),
-    fuelConsumptionLPer100km: readPositiveNumber('FUEL_CONSUMPTION_L_PER_100KM'),
     // 仅当 TeslaMate 没有给出该次充电的费用时，用它估算
     electricityPriceCnyPerKwh: readPositiveNumber('ELECTRICITY_PRICE_CNY_PER_KWH'),
     batteryOriginalRangeKm: readPositiveNumber('BATTERY_ORIGINAL_RANGE_KM'),

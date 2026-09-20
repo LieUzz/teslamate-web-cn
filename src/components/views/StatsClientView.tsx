@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LifetimeStats, EnergyBreakdown, DrivingRecordsByPeriod, SavingsAnalysis, CarMilestonesData } from '@/types';
+import { LifetimeStats, EnergyBreakdown, DrivingRecordsByPeriod, CarMilestonesData } from '@/types';
 import { useViewModeStore } from '@/store/useViewModeStore';
 import { DrivingRecordsCard } from '@/components/cards/DrivingRecordsCard';
 import {
@@ -10,7 +10,6 @@ import {
   Moon,
   Wifi,
   WifiOff,
-  DollarSign,
   BatteryCharging,
   Clock,
   ChevronRight,
@@ -19,24 +18,22 @@ import {
   Calendar,
   ThermometerSun
 } from 'lucide-react';
-import { formatCurrency, formatOrDash, formatPercent } from '@/lib/formatters';
+import { formatOrDash, formatPercent } from '@/lib/formatters';
 import { CarMilestonesCard } from '@/components/cards/CarMilestonesCard';
 import { Empty } from '@/components/common/Empty';
 
 interface StatsClientViewProps {
   stats: LifetimeStats;
-  savings: SavingsAnalysis;
   energy: EnergyBreakdown;
   records: DrivingRecordsByPeriod;
   milestones: CarMilestonesData;
 }
 
-export function StatsClientView({ stats, savings, energy, records, milestones }: StatsClientViewProps) {
+export function StatsClientView({ stats, energy, records, milestones }: StatsClientViewProps) {
   const { isMobileLayout } = useViewModeStore();
 
   // 只有两个占比都已知时才画对比条
   const hasEnergySplit = energy.driving_percent != null && energy.parking_percent != null;
-  const savedCost = savings.saved_cost;
 
   return (
     <div className={`space-y-5 pb-24 pt-2 px-3 mx-auto ${isMobileLayout ? 'max-w-lg' : 'max-w-6xl'}`}>
@@ -239,60 +236,6 @@ export function StatsClientView({ stats, savings, energy, records, milestones }:
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 💰 核心 3：对比燃油车 (油价与参照油耗来自配置，未配置则不比较) */}
-      <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-lg space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span>燃油车费用对比</span>
-          </h2>
-          {savings.configured && savedCost != null && (
-            <span className={`text-xs font-semibold ${savedCost >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {savedCost >= 0 ? `已节省 ${formatCurrency(savedCost)}` : `比油车多花 ${formatCurrency(Math.abs(savedCost))}`}
-            </span>
-          )}
-        </div>
-
-        {!savings.configured ? (
-          <Empty
-            title="未配置油车对比参数"
-            hint="请设置环境变量 FUEL_PRICE_CNY_PER_LITRE 与 FUEL_CONSUMPTION_L_PER_100KM"
-            icon={DollarSign}
-          />
-        ) : (
-          <>
-            <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
-              <div className="bg-zinc-950/50 p-3 rounded-2xl border border-zinc-800">
-                <div className="text-[11px] text-zinc-400">有记录的充电费用</div>
-                <div className="text-sm font-bold text-amber-400 mt-1">{formatCurrency(savings.ev_cost)}</div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
-                  {savings.ev_cost_per_km != null ? `¥${savings.ev_cost_per_km.toFixed(3)} / km` : '-- / km'}
-                </div>
-              </div>
-
-              <div className="bg-zinc-950/50 p-3 rounded-2xl border border-zinc-800">
-                <div className="text-[11px] text-zinc-400">同里程油车油费</div>
-                <div className="text-sm font-bold text-zinc-300 mt-1">{formatCurrency(savings.fuel_cost)}</div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
-                  按 {formatOrDash(savings.fuel_consumption_l_per_100km, { digits: 1 })} L/100km · ¥{formatOrDash(savings.fuel_price_cny_per_litre, { digits: 2 })}/L
-                </div>
-              </div>
-
-              <div className="bg-zinc-950/50 p-3 rounded-2xl border border-zinc-800">
-                <div className="text-[11px] text-zinc-400">折合燃油</div>
-                <div className="text-sm font-bold text-emerald-400 mt-1">{formatOrDash(savings.fuel_liters_saved, { digits: 1 })} <span className="text-[10px] font-normal">升</span></div>
-                <div className="text-[10px] text-emerald-500/80 mt-0.5">折合 {formatOrDash(savings.co2_reduced_kg, { digits: 1 })} kg CO₂</div>
-              </div>
-            </div>
-
-            <div className="text-[11px] text-zinc-500 leading-relaxed">
-              仅统计 TeslaMate 有记录的里程 ({formatOrDash(savings.logged_distance_km, { digits: 1, locale: true })} km)。
-              {savings.unpriced_charge_count > 0 && ` 另有 ${savings.unpriced_charge_count} 次充电无费用数据，未计入。`}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

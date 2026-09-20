@@ -22,6 +22,7 @@ check '编造的车辆状态兜底'               '\|\| ?(3\.0|76|331\.2|310\.0|
 check '假 VIN / 写死的软件版本'           '5YJ3E1EB8NF000000|2024\.32\.10'
 check '编造的统计口号'                   '优于.{0,6}[0-9]+% ?车友|行业(平均|大数据)|衰减极低'
 check '对车主的假设 (家充/谷电/7kW)'      '家用 ?7 ?kW|谷电|家里车位|次家充'
+check '已移除的油车对比模块'               'SavingsAnalysis|fetchSavings|fuel_equivalent_cost|saved_cost|FUEL_PRICE_CNY|FUEL_CONSUMPTION_L|燃油|油车|油费'
 check '演示 / 模拟数据'                   'MOCK_|mockData|NEXT_PUBLIC_DEMO_MODE|generateStaticParams'
 check '向 TeslaMate 数据库写入'           'INSERT INTO|CREATE TABLE|UPDATE [a-z_]+ SET|DELETE FROM|car_metadata'
 check '密钥暴露给浏览器'                  'NEXT_PUBLIC_AMAP_KEY'

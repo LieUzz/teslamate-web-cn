@@ -8,7 +8,6 @@ import {
   BATTERY_HEALTH_MIN_ENERGY_ADDED_KWH,
   BATTERY_HEALTH_MIN_SOC_DELTA,
   BATTERY_HEALTH_RECENT_SAMPLES,
-  CO2_KG_PER_LITRE_PETROL,
   FOOTPRINT_MAX_DRIVES,
   FOOTPRINT_TARGET_POINTS,
   MERGE_GAP_SLACK_MINUTES,
@@ -43,7 +42,6 @@ import {
   DrivingRecordItem,
   CarMilestone,
   CarMilestonesData,
-  SavingsAnalysis,
 } from '@/types';
 
 // 数据层约定：
@@ -936,13 +934,6 @@ export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthI
   }
 }
 
-// 油车对比参数；两项都配置了才有意义
-function fuelCostPerKm(): number | null {
-  const { fuelPriceCnyPerLitre, fuelConsumptionLPer100km } = getConfig();
-  if (fuelPriceCnyPerLitre == null || fuelConsumptionLPer100km == null) return null;
-  return (fuelConsumptionLPer100km / 100) * fuelPriceCnyPerLitre;
-}
-
 /**
  * 月度报告：按配置时区分月 (库里存的是 UTC)
  */
@@ -990,13 +981,11 @@ export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport
       [carId ?? null, timeZone, electricityPriceCnyPerKwh]
     );
 
-    const perKm = fuelCostPerKm();
     return res.rows.map((row): MonthlyReport => {
       const distance = num(row.distance_km) ?? 0;
       const driveKwh = num(row.drive_kwh);
       const kwhDistance = num(row.kwh_distance);
       const chargeCost = num(row.charge_cost);
-      const fuelCost = perKm != null ? distance * perKm : null;
       return {
         month: row.month,
         drive_count: Number(row.drive_count),
@@ -1007,9 +996,6 @@ export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport
         charge_energy_kwh: Number((num(row.charge_energy_kwh) ?? 0).toFixed(1)),
         charge_cost: round(chargeCost, 2),
         unpriced_charge_count: Number(row.unpriced_count),
-        fuel_equivalent_cost: round(fuelCost, 2),
-        // 可以为负：电费比油费贵的月份如实显示
-        saved_cost: fuelCost != null && chargeCost != null ? round(fuelCost - chargeCost, 2) : null,
       };
     });
   } catch (err) {
@@ -1202,35 +1188,6 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
     console.error('fetchLifetimeStats error:', err);
     return EMPTY_LIFETIME_STATS;
   }
-}
-
-/**
- * 油车对比：只拿"有记录的里程"对比"有记录的电费"。接入 TeslaMate 之前的里程不参与，否则等于把那部分电费当成 0。
- */
-export async function fetchSavingsAnalysis(carId?: number): Promise<SavingsAnalysis> {
-  const { fuelPriceCnyPerLitre, fuelConsumptionLPer100km } = getConfig();
-  const stats = await fetchLifetimeStats(carId);
-
-  const perKm = fuelCostPerKm();
-  const distance = stats.logged_distance_km;
-  const evCost = stats.total_charge_cost;
-  const fuelCost = perKm != null && distance != null ? distance * perKm : null;
-  const litres = fuelConsumptionLPer100km != null && distance != null ? (distance / 100) * fuelConsumptionLPer100km : null;
-
-  return {
-    configured: perKm != null,
-    fuel_price_cny_per_litre: fuelPriceCnyPerLitre,
-    fuel_consumption_l_per_100km: fuelConsumptionLPer100km,
-    logged_distance_km: distance,
-    ev_cost: evCost,
-    ev_cost_per_km: evCost != null && distance != null && distance > 0 ? round(evCost / distance, 3) : null,
-    fuel_cost: round(fuelCost, 2),
-    fuel_cost_per_km: round(perKm, 3),
-    saved_cost: fuelCost != null && evCost != null ? round(fuelCost - evCost, 2) : null,
-    fuel_liters_saved: round(litres, 1),
-    co2_reduced_kg: litres != null ? round(litres * CO2_KG_PER_LITRE_PETROL, 0) : null,
-    unpriced_charge_count: stats.unpriced_charge_count,
-  };
 }
 
 // ---------------------------------------------------------------------------

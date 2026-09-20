@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   fetchLifetimeStats,
-  fetchSavingsAnalysis,
   fetchEnergyBreakdown,
   fetchDrivingRecords,
   fetchCarMilestones,
@@ -11,9 +10,8 @@ import { StatsClientView } from '@/components/views/StatsClientView';
 export const dynamic = 'force-dynamic';
 
 export default async function StatsPage() {
-  const [stats, savings, energy, records, milestones] = await Promise.all([
+  const [stats, energy, records, milestones] = await Promise.all([
     fetchLifetimeStats(),
-    fetchSavingsAnalysis(),
     fetchEnergyBreakdown(),
     fetchDrivingRecords(),
     fetchCarMilestones(),
@@ -22,7 +20,6 @@ export default async function StatsPage() {
   return (
     <StatsClientView
       stats={stats}
-      savings={savings}
       energy={energy}
       records={records}
       milestones={milestones}

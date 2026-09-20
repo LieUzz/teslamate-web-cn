@@ -226,8 +226,6 @@ export interface MonthlyReport {
   charge_cost: number | null;
   // 有多少次充电没有费用数据 (不计入 charge_cost)
   unpriced_charge_count: number;
-  fuel_equivalent_cost: number | null;
-  saved_cost: number | null;
 }
 
 // 气温能耗关联点
@@ -263,22 +261,6 @@ export interface LifetimeStats {
   total_charge_cost: number | null;
   unpriced_charge_count: number;
   asleep_duration_hours: number | null;
-}
-
-// 油车对比 (只比较有记录的里程与有记录的电费)
-export interface SavingsAnalysis {
-  configured: boolean; // 是否配置了油价与参照油耗
-  fuel_price_cny_per_litre: number | null;
-  fuel_consumption_l_per_100km: number | null;
-  logged_distance_km: number | null;
-  ev_cost: number | null;
-  ev_cost_per_km: number | null;
-  fuel_cost: number | null;
-  fuel_cost_per_km: number | null;
-  saved_cost: number | null;
-  fuel_liters_saved: number | null;
-  co2_reduced_kg: number | null;
-  unpriced_charge_count: number;
 }
 
 // 极值单项记录

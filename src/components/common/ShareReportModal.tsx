@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { MonthlyReport } from '@/types';
 import { formatCurrency, formatOrDash } from '@/lib/formatters';
 import { toPng } from 'html-to-image';
-import { X, Copy, Check, Sparkles, Route, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Copy, Check, Route, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface ShareReportModalProps {
   report: MonthlyReport;
@@ -103,18 +103,6 @@ export function ShareReportModal({
     report.charge_cost != null && report.distance_km > 0 && report.unpriced_charge_count === 0
       ? report.charge_cost / report.distance_km
       : null;
-  // 电费占同里程油车费用的比例
-  const costRatioPercent =
-    report.charge_cost != null && report.fuel_equivalent_cost != null && report.fuel_equivalent_cost > 0
-      ? (report.charge_cost / report.fuel_equivalent_cost) * 100
-      : null;
-  // saved_cost 可能为负 (电费高于油费)，如实展示
-  const savedText =
-    report.saved_cost == null
-      ? null
-      : report.saved_cost >= 0
-        ? { label: '本月对比同里程油车节省', value: formatCurrency(report.saved_cost) }
-        : { label: '本月电费高于同里程油车', value: formatCurrency(-report.saved_cost) };
 
   const distanceText = formatOrDash(report.distance_km, { digits: 1, unit: 'km' });
   const chargeEnergyText = formatOrDash(report.charge_energy_kwh, { digits: 1, unit: 'kWh' });
@@ -130,7 +118,6 @@ export function ShareReportModal({
         ? `💰 充电费用: ${formatCurrency(report.charge_cost)}${costPerKm != null ? ` (折合 ¥${costPerKm.toFixed(3)}/km)` : ''}${unpricedNote ? ` (${unpricedNote})` : ''}`
         : null,
       report.avg_wh_km != null ? `🌿 平均能耗: ${Math.round(report.avg_wh_km)} Wh/km` : null,
-      savedText != null ? `⛽ ${savedText.label}: ${savedText.value}` : null,
       '✨ 由 TeslaMate CN 生成',
     ].filter((v): v is string => v != null);
     const text = lines.join('\n');
@@ -193,39 +180,15 @@ export function ShareReportModal({
                 </span>
               </div>
 
-              {/* 核心主视觉：有油车对比数据时展示差额，否则展示本月里程 */}
+              {/* 核心主视觉：本月里程 */}
               <div className="text-center py-2 bg-zinc-900/40 rounded-2xl border border-zinc-800/60 p-3">
-                {savedText != null ? (
-                  <>
-                    <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{savedText.label}</span>
-                    </div>
-                    <div
-                      className={`text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r mt-0.5 ${
-                        report.saved_cost != null && report.saved_cost < 0 ? 'from-amber-400 to-orange-300' : 'from-emerald-400 to-teal-300'
-                      }`}
-                    >
-                      {savedText.value}
-                    </div>
-                    {costRatioPercent != null && (
-                      <div className="text-[10px] text-zinc-500 mt-0.5">
-                        电费为同里程油车费用的 {costRatioPercent.toFixed(1)}%
-                      </div>
-                    )}
-                    {unpricedNote && <div className="text-[10px] text-zinc-500 mt-0.5">{unpricedNote}</div>}
-                  </>
-                ) : (
-                  <>
-                    <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
-                      <Route className="w-3.5 h-3.5 text-blue-400" />
-                      <span>本月行驶里程</span>
-                    </div>
-                    <div className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 mt-0.5">
-                      {distanceText}
-                    </div>
-                  </>
-                )}
+                <div className="text-xs text-zinc-400 flex items-center justify-center gap-1">
+                  <Route className="w-3.5 h-3.5 text-blue-400" />
+                  <span>本月行驶里程</span>
+                </div>
+                <div className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 mt-0.5">
+                  {distanceText}
+                </div>
               </div>
 
               {/* 关键指标格：没有数据的格子不出现 */}

@@ -39,11 +39,6 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
           // 当月电费 ÷ 当月里程；费用未知或里程为 0 时不计算
           const costPerKm =
             report.charge_cost != null && report.distance_km > 0 ? report.charge_cost / report.distance_km : null;
-          // 电费占同里程油费的比例；任一未知则不显示
-          const costRatioPercent =
-            report.charge_cost != null && report.fuel_equivalent_cost != null && report.fuel_equivalent_cost > 0
-              ? (report.charge_cost / report.fuel_equivalent_cost) * 100
-              : null;
           return (
           <div
             key={report.month}
@@ -106,28 +101,6 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
                   当月电费 ÷ 里程: {costPerKm != null ? `¥${costPerKm.toFixed(3)} / km` : '--'}
                 </div>
               </div>
-            </div>
-
-            {/* 账单总结对比：未配置油价/油耗时 fuel_equivalent_cost 为 null */}
-            <div className="bg-zinc-950/40 border border-zinc-800/40 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-zinc-300">
-              {report.fuel_equivalent_cost == null ? (
-                <span className="text-zinc-500">
-                  未配置油车对比参数 (FUEL_PRICE_CNY_PER_LITRE / FUEL_CONSUMPTION_L_PER_100KM)
-                </span>
-              ) : (
-                <>
-                  <span>⛽ 同里程燃油车预计油费: <strong>{formatCurrency(report.fuel_equivalent_cost)}</strong></span>
-                  {report.saved_cost == null ? (
-                    <span className="text-zinc-500">电费未知，无法比较</span>
-                  ) : (
-                    <span className={`font-semibold ${report.saved_cost >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {report.saved_cost >= 0 ? '本月节省 ' : '本月比油车多花 '}
-                      <strong>{formatCurrency(Math.abs(report.saved_cost))}</strong>
-                      {costRatioPercent != null && ` (电费为油费的 ${costRatioPercent.toFixed(1)}%)`}
-                    </span>
-                  )}
-                </>
-              )}
             </div>
           </div>
           );
