@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { fetchTemperatureStats } from '@/lib/queries';
 import { ArrowLeft, ThermometerSun } from 'lucide-react';
-import { TemperatureCharts } from '@/components/charts/TemperatureCharts';
+import { TemperatureCharts } from '@/components/charts/lazy';
 
 export const dynamic = 'force-dynamic';
 

@@ -26,6 +26,8 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              // 页面都是动态渲染：默认预取拿不到页面数据，这里预取完整数据，点击时无需再等一次往返
+              prefetch={true}
               className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
                 isActive ? 'text-red-500 scale-105' : 'text-zinc-500 hover:text-zinc-300'
               }`}

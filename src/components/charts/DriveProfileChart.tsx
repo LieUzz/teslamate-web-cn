@@ -42,7 +42,7 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
 
     async function initChart() {
       if (!chartRef.current || positions.length === 0) return;
-      const echarts = await import('echarts');
+      const { echarts } = await import('@/lib/echarts');
 
       if (!isMounted) return;
 

@@ -28,6 +28,8 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              // 页面都是动态渲染：默认预取拿不到页面数据，这里预取完整数据，点击时无需再等一次往返
+              prefetch={true}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-red-500/10 text-red-400 border border-red-500/20 font-semibold'

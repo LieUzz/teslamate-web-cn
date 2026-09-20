@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactEChartsCore from 'echarts-for-react/lib/core';
+import { echarts } from '@/lib/echarts';
 import { TemperatureEfficiencyPoint } from '@/types';
 import { Empty } from '@/components/common/Empty';
 
@@ -80,5 +81,5 @@ export function TemperatureCharts({ points }: TemperatureChartsProps) {
     ],
   };
 
-  return <ReactECharts option={option} style={{ height: '260px', width: '100%' }} />;
+  return <ReactEChartsCore echarts={echarts} option={option} style={{ height: '260px', width: '100%' }} />;
 }

@@ -6,6 +6,7 @@ import { Header } from '@/components/common/Header';
 import { Sidebar } from '@/components/common/Sidebar';
 import { BottomNav } from '@/components/common/BottomNav';
 import { DeviceSwitchModal } from '@/components/common/DeviceSwitchModal';
+import { RefreshOnFocus } from '@/components/common/RefreshOnFocus';
 
 export const metadata: Metadata = {
   title: 'TeslaMate CN | 现代化全平台车况与轨迹可视化看板',
@@ -42,6 +43,8 @@ export default async function RootLayout({
 
         {/* 设备模式自由切换悬浮窗 */}
         <DeviceSwitchModal />
+
+        <RefreshOnFocus />
       </body>
     </html>
   );

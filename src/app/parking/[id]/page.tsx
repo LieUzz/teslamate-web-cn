@@ -4,10 +4,9 @@ import { notFound } from 'next/navigation';
 import { fetchParkingDetail } from '@/lib/queries';
 import { formatDuration, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
 import { Moon, ArrowLeft, Battery, BatteryCharging } from 'lucide-react';
-import { ParkingDetailCharts } from '@/components/charts/ParkingDetailCharts';
+import { ParkingDetailCharts } from '@/components/charts/lazy';
 
 export const dynamic = 'force-dynamic';
-
 
 interface ParkingDetailPageProps {
   params: {

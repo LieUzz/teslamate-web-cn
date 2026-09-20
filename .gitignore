@@ -23,3 +23,6 @@ pnpm-debug.log*
 *.tar.gz
 *.zip
 .system_generated/
+
+# typescript incremental build cache
+*.tsbuildinfo

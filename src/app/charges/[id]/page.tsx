@@ -4,10 +4,9 @@ import { notFound } from 'next/navigation';
 import { fetchChargeDetail } from '@/lib/queries';
 import { formatEnergy, formatDuration, formatCurrency, formatDateTime, formatPercent, formatOrDash, DASH } from '@/lib/formatters';
 import { Zap, ArrowLeft, MapPin, BatteryCharging } from 'lucide-react';
-import { ChargeDetailCharts } from '@/components/charts/ChargeDetailCharts';
+import { ChargeDetailCharts } from '@/components/charts/lazy';
 
 export const dynamic = 'force-dynamic';
-
 
 interface ChargeDetailPageProps {
   params: {
