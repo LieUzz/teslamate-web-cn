@@ -8,7 +8,7 @@ import {
 } from '@/lib/queries';
 import { StatsClientView } from '@/components/views/StatsClientView';
 
-export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
 export default async function StatsPage() {
   const [stats, savings, energy, records, milestones] = await Promise.all([

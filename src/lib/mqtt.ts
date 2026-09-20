@@ -1,22 +1,48 @@
 import mqtt, { MqttClient } from 'mqtt';
 
-interface CarMqttState {
+// TeslaMate 通过 MQTT 发布的实时状态 (retained)。没收到的字段保持 undefined，不做任何假设。
+export interface CarMqttState {
+  display_name?: string;
+  state?: string;
+  since?: string;
+  version?: string;
+  geofence?: string;
   sentry_mode?: boolean;
   locked?: boolean;
   doors_open?: boolean;
   windows_open?: boolean;
   frunk_open?: boolean;
   trunk_open?: boolean;
+  is_climate_on?: boolean;
+  battery_heater?: boolean;
   battery_level?: number;
   usable_battery_level?: number;
   rated_battery_range_km?: number;
+  ideal_battery_range_km?: number;
+  est_battery_range_km?: number;
   odometer?: number;
-  state?: string;
-  is_climate_on?: boolean;
-  outside_temp?: number;
+  speed?: number;
+  power?: number;
   inside_temp?: number;
+  outside_temp?: number;
+  latitude?: number;
+  longitude?: number;
+  tpms_pressure_fl?: number;
+  tpms_pressure_fr?: number;
+  tpms_pressure_rl?: number;
+  tpms_pressure_rr?: number;
   shift_state?: string;
 }
+
+const BOOLEAN_KEYS = new Set([
+  'sentry_mode', 'locked', 'doors_open', 'windows_open', 'frunk_open', 'trunk_open', 'is_climate_on', 'battery_heater',
+]);
+const NUMBER_KEYS = new Set([
+  'battery_level', 'usable_battery_level', 'rated_battery_range_km', 'ideal_battery_range_km', 'est_battery_range_km',
+  'odometer', 'speed', 'power', 'inside_temp', 'outside_temp', 'latitude', 'longitude',
+  'tpms_pressure_fl', 'tpms_pressure_fr', 'tpms_pressure_rl', 'tpms_pressure_rr',
+]);
+const STRING_KEYS = new Set(['display_name', 'state', 'since', 'version', 'geofence', 'shift_state']);
 
 const carStates = new Map<number, CarMqttState>();
 let client: MqttClient | null = null;
@@ -24,55 +50,52 @@ let client: MqttClient | null = null;
 export function initMqtt() {
   if (client) return;
 
-  const host = process.env.MQTT_HOST || 'teslamate-mosquitto';
+  const host = process.env.MQTT_HOST;
+  if (!host) {
+    console.warn('MQTT_HOST is not set, live state disabled');
+    return;
+  }
   const port = process.env.MQTT_PORT || '1883';
+  const namespace = process.env.MQTT_NAMESPACE ? `teslamate/${process.env.MQTT_NAMESPACE}` : 'teslamate';
   const url = `mqtt://${host}:${port}`;
+  const prefix = `${namespace}/cars/`;
 
   try {
     client = mqtt.connect(url, {
       clientId: `teslamate_cn_web_${Math.random().toString(16).slice(2, 8)}`,
+      username: process.env.MQTT_USERNAME || undefined,
+      password: process.env.MQTT_PASSWORD || undefined,
       connectTimeout: 4000,
       reconnectPeriod: 5000,
     });
 
     client.on('connect', () => {
       console.log('Connected to TeslaMate MQTT broker at', url);
-      client?.subscribe('teslamate/cars/#');
+      client?.subscribe(`${prefix}#`);
     });
 
     client.on('message', (topic, message) => {
-      const parts = topic.split('/');
-      // topic 格式: teslamate/cars/{car_id}/{key}
-      if (parts.length >= 4 && parts[0] === 'teslamate' && parts[1] === 'cars') {
-        const carId = parseInt(parts[2], 10);
-        const key = parts.slice(3).join('_');
-        const valStr = message.toString().trim();
+      // topic 格式: {namespace}/cars/{car_id}/{key}
+      if (!topic.startsWith(prefix)) return;
+      const [idPart, ...keyParts] = topic.slice(prefix.length).split('/');
+      const carId = parseInt(idPart, 10);
+      if (isNaN(carId) || keyParts.length === 0) return;
+      const key = keyParts.join('_');
+      const valStr = message.toString().trim();
 
-        if (isNaN(carId)) return;
-        const current = carStates.get(carId) || {};
-
-        if (key === 'sentry_mode') {
-          current.sentry_mode = valStr === 'true';
-        } else if (key === 'locked') {
-          current.locked = valStr === 'true';
-        } else if (key === 'doors_open') {
-          current.doors_open = valStr === 'true';
-        } else if (key === 'trunk_open') {
-          current.trunk_open = valStr === 'true';
-        } else if (key === 'state') {
-          current.state = valStr;
-        } else if (key === 'battery_level') {
-          current.battery_level = Number(valStr);
-        } else if (key === 'is_climate_on') {
-          current.is_climate_on = valStr === 'true';
-        } else if (key === 'outside_temp') {
-          current.outside_temp = Number(valStr);
-        } else if (key === 'shift_state') {
-          current.shift_state = valStr;
-        }
-
-        carStates.set(carId, current);
+      const current = (carStates.get(carId) || {}) as Record<string, unknown>;
+      if (valStr === '' || valStr === 'nil' || valStr === 'null') {
+        delete current[key];
+      } else if (BOOLEAN_KEYS.has(key)) {
+        current[key] = valStr === 'true';
+      } else if (NUMBER_KEYS.has(key)) {
+        const n = Number(valStr);
+        if (Number.isFinite(n)) current[key] = n;
+        else delete current[key];
+      } else if (STRING_KEYS.has(key)) {
+        current[key] = valStr;
       }
+      carStates.set(carId, current as CarMqttState);
     });
 
     client.on('error', (err) => {
@@ -83,8 +106,8 @@ export function initMqtt() {
   }
 }
 
-// 导出获取车辆最新 MQTT 状态函数
-export function getCarMqttState(carId: number = 1): CarMqttState {
+// 获取车辆最新 MQTT 状态；没有数据时返回空对象
+export function getCarMqttState(carId: number): CarMqttState {
   if (!client) {
     initMqtt();
   }

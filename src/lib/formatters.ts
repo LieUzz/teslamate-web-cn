@@ -1,33 +1,56 @@
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
+// 没有数据时统一显示的占位符；不要用 0 顶替未知值
+export const DASH = '--';
+
+// 数值格式化：未知 -> "--"
+export function formatOrDash(
+  v: number | null | undefined,
+  opts: { digits?: number; unit?: string; locale?: boolean } = {}
+): string {
+  if (v == null || !Number.isFinite(v)) return DASH;
+  let n: string;
+  if (opts.locale) {
+    n = v.toLocaleString('zh-CN', opts.digits == null ? undefined : { minimumFractionDigits: opts.digits, maximumFractionDigits: opts.digits });
+  } else {
+    n = opts.digits == null ? String(v) : v.toFixed(opts.digits);
+  }
+  return opts.unit ? `${n} ${opts.unit}` : n;
+}
+
+export function formatPercent(v: number | null | undefined, digits = 0): string {
+  if (v == null || !Number.isFinite(v)) return DASH;
+  return `${v.toFixed(digits)}%`;
+}
+
 export function formatDistance(km: number | null | undefined): string {
-  if (km == null || isNaN(km)) return '0 km';
+  if (km == null || isNaN(km)) return DASH;
   return `${km.toFixed(1)} km`;
 }
 
 export function formatSpeed(kmh: number | null | undefined): string {
-  if (kmh == null || isNaN(kmh)) return '0 km/h';
+  if (kmh == null || isNaN(kmh)) return DASH;
   return `${Math.round(kmh)} km/h`;
 }
 
 export function formatPower(kw: number | null | undefined): string {
-  if (kw == null || isNaN(kw)) return '0 kW';
+  if (kw == null || isNaN(kw)) return DASH;
   return `${kw.toFixed(1)} kW`;
 }
 
 export function formatEnergy(kwh: number | null | undefined): string {
-  if (kwh == null || isNaN(kwh)) return '0 kWh';
+  if (kwh == null || isNaN(kwh)) return DASH;
   return `${kwh.toFixed(2)} kWh`;
 }
 
 export function formatEfficiency(whkm: number | null | undefined): string {
-  if (whkm == null || isNaN(whkm)) return '0 Wh/km';
+  if (whkm == null || isNaN(whkm)) return DASH;
   return `${Math.round(whkm)} Wh/km`;
 }
 
 export function formatDuration(minutes: number | null | undefined): string {
-  if (minutes == null || isNaN(minutes) || minutes <= 0) return '0分钟';
+  if (minutes == null || isNaN(minutes) || minutes < 0) return DASH;
   const hrs = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   if (hrs === 0) return `${mins} 分钟`;
@@ -35,22 +58,21 @@ export function formatDuration(minutes: number | null | undefined): string {
 }
 
 export function formatCurrency(amount: number | null | undefined): string {
-  if (amount == null || isNaN(amount)) return '¥0.00';
+  if (amount == null || isNaN(amount)) return DASH;
   return `¥${amount.toFixed(2)}`;
 }
 
 /**
- * 🕒 强制按东八区（Asia/Shanghai）格式化完整日期时间
+ * 按运行环境时区格式化完整日期时间 (服务端取 TZ 环境变量)
  * 输出示例: 2026-08-29 14:10
  */
 export function formatDateTime(dateStr: string | Date | null | undefined): string {
-  if (!dateStr) return '--';
+  if (!dateStr) return DASH;
   try {
     const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (isNaN(d.getTime())) return String(dateStr);
 
     const formatter = new Intl.DateTimeFormat('zh-CN', {
-      timeZone: 'Asia/Shanghai',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -69,16 +91,15 @@ export function formatDateTime(dateStr: string | Date | null | undefined): strin
 }
 
 /**
- * 🕒 强制按东八区（Asia/Shanghai）仅格式化时间 (HH:mm)
+ * 按运行环境时区仅格式化时间 (HH:mm)
  */
 export function formatTime(dateStr: string | Date | null | undefined): string {
-  if (!dateStr) return '--';
+  if (!dateStr) return DASH;
   try {
     const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (isNaN(d.getTime())) return String(dateStr);
 
     const formatter = new Intl.DateTimeFormat('zh-CN', {
-      timeZone: 'Asia/Shanghai',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -97,7 +118,7 @@ export function formatTime(dateStr: string | Date | null | undefined): string {
  * 🕒 相对时间格式化 (例如: 10分钟前)
  */
 export function formatTimeAgo(dateStr: string | null | undefined): string {
-  if (!dateStr) return '--';
+  if (!dateStr) return DASH;
   try {
     const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (isNaN(d.getTime())) return String(dateStr);

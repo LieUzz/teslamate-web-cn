@@ -1,14 +1,36 @@
+import type { Pool } from 'pg';
 import { getDbPool, getTouCostJoin } from './db';
 import { getCarMqttState } from './mqtt';
-import { 
-  Car, 
-  DriveSummary, 
-  DriveDetail, 
-  ChargeSummary, 
-  ChargeDetail, 
-  ParkingSummary, 
-  ParkingDetail, 
-  LifetimeStats, 
+import { getConfig } from './config';
+import { resolveAddress } from './geocoder';
+import { wgs84ToGcj02 } from './coordtransform';
+import {
+  BATTERY_HEALTH_MIN_ENERGY_ADDED_KWH,
+  BATTERY_HEALTH_MIN_SOC_DELTA,
+  BATTERY_HEALTH_RECENT_SAMPLES,
+  CO2_KG_PER_LITRE_PETROL,
+  FOOTPRINT_MAX_DRIVES,
+  FOOTPRINT_TARGET_POINTS,
+  MERGE_GAP_SLACK_MINUTES,
+  MERGE_MAX_GAP_MINUTES,
+  MILESTONE_TARGETS_KM,
+  MIN_DISTANCE_FOR_EFFICIENCY_KM,
+  MIN_DISTANCE_FOR_EFFICIENCY_RECORD_KM,
+  MIN_DISTANCE_FOR_FOOTPRINT_KM,
+  MIN_LOGGED_DAYS_FOR_DAILY_AVG,
+  MIN_PARKING_SECONDS,
+  PARKING_CURVE_TARGET_POINTS,
+  RECORD_WINDOW_DAYS,
+} from './constants';
+import {
+  Car,
+  DriveSummary,
+  DriveDetail,
+  ChargeSummary,
+  ChargeDetail,
+  ParkingSummary,
+  ParkingDetail,
+  LifetimeStats,
   EnergyBreakdown,
   BatteryHealthInfo,
   MonthlyReport,
@@ -21,283 +43,219 @@ import {
   DrivingRecordItem,
   CarMilestone,
   CarMilestonesData,
+  SavingsAnalysis,
 } from '@/types';
-import { wgs84ToGcj02 } from './coordtransform';
-import { reverseGeocodeAddress } from './geocoder';
-import {
-  MOCK_CAR,
-  MOCK_DRIVES,
-  MOCK_DRIVE_DETAIL,
-  MOCK_CHARGES,
-  MOCK_PARKING,
-  MOCK_LIFETIME_STATS,
-  MOCK_MONTHLY_REPORTS,
-  MOCK_BATTERY_HEALTH,
-  MOCK_FOOTPRINT_DRIVES,
-  MOCK_DRIVING_RECORDS,
-  MOCK_CAR_MILESTONES,
-} from './mockData';
 
-const isDemo = () => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+// 数据层约定：
+//  - 没有演示/模拟数据：这里返回的每个数字都来自 TeslaMate 数据库、MQTT 或用户配置
+//  - 查不到 / 算不出的值一律返回 null，绝不使用默认值顶替
+//  - 能耗沿用 TeslaMate 自己的定义：续航变化量 × cars.efficiency，续航口径取 settings.preferred_range
 
-// 非演示模式下绝不返回 mock 数据：无数据或查询失败时返回明确的空值，避免把演示数据当成真实数据展示
-const emptyRecordItem = (title: string, unit: string): DrivingRecordItem => ({
-  value: 0,
-  formatted_value: '--',
-  unit,
-  title,
-  sub_text: '暂无数据',
-  date: '',
-});
+// ---------------------------------------------------------------------------
+// 通用小工具
+// ---------------------------------------------------------------------------
 
-const emptyDrivingRecordsFor = (period: RecordPeriod): DrivingRecords => ({
-  period,
-  max_speed: emptyRecordItem('最高时速', 'km/h'),
-  longest_distance: emptyRecordItem('最远行程', 'km'),
-  longest_duration: emptyRecordItem('最长驾驶', ''),
-  best_efficiency: emptyRecordItem('最佳能耗', 'Wh/km'),
-  max_power: emptyRecordItem('最大功率', 'kW'),
-  max_regen: emptyRecordItem('最大回收', 'kW'),
-  max_ascent: emptyRecordItem('最大爬升', 'm'),
-  extreme_temp: {
-    lowest: emptyRecordItem('最低气温', '°C'),
-    highest: emptyRecordItem('最高气温', '°C'),
-  },
-});
-
-const EMPTY_DRIVING_RECORDS: DrivingRecordsByPeriod = {
-  month: emptyDrivingRecordsFor('month'),
-  half_year: emptyDrivingRecordsFor('half_year'),
-  year: emptyDrivingRecordsFor('year'),
-  all: emptyDrivingRecordsFor('all'),
+const num = (v: unknown): number | null => {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 };
 
-const EMPTY_LIFETIME_STATS: LifetimeStats = {
-  total_drives: 0,
-  raw_total_drives: 0,
-  total_distance_km: 0,
-  logged_distance_km: 0,
-  total_drive_duration_hours: 0,
-  total_energy_kwh: 0,
-  avg_efficiency_wh_km: 0,
-  total_charges: 0,
-  total_charge_energy_added: 0,
-  total_charge_cost: 0,
-  sentry_duration_hours: 0,
-  sleep_duration_hours: 0,
+const round = (v: number | null, digits: number): number | null =>
+  v == null ? null : Number(v.toFixed(digits));
+
+const iso = (v: unknown): string | null => {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(String(v));
+  return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
-const EMPTY_BATTERY_HEALTH: BatteryHealthInfo = {
-  nominal_full_pack_kwh: 0,
-  current_usable_pack_kwh: 0,
-  health_percent: 0,
-  estimated_full_range_km: 0,
-  original_full_range_km: 0,
-  degradation_percent: 0,
-  slow_charge_count: 0,
-  fast_charge_count: 0,
-  slow_charge_percent: 0,
-  cycle_count: 0,
+const bool = (v: unknown): boolean | null => (v == null ? null : Boolean(v));
+
+const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+
+const median = (values: number[]): number | null => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-const emptyCarMilestones = (carId: number): CarMilestonesData => ({
-  car_id: carId,
-  delivery_date: '',
-  days_since_delivery: 0,
-  current_odometer: 0,
-  daily_avg_km: 0,
-  milestones: [],
-});
-
-// 生产环境安全兜底空车（不含任何伪造地点与假VIN）
-const DEFAULT_EMPTY_CAR: Car = {
-  id: 1,
-  name: 'Tesla',
-  model: 'Y',
-  trim_badging: '',
-  vin: '',
-  exterior_color: 'SolidBlack',
-  wheel_type: 'Standard',
-  usable_battery_level: 0,
-  battery_level: 0,
-  ideal_battery_range_km: 0,
-  est_battery_range_km: 0,
-  odometer: 0,
-  speed: 0,
-  power: 0,
-  state: 'offline',
-  since: null,
-  inside_temp: null,
-  outside_temp: null,
-  is_climate_on: false,
-  is_locked: true,
-  is_sentry_mode: false,
-  doors_open: false,
-  windows_open: false,
-  frunk_open: false,
-  trunk_open: false,
-  tire_pressure_fl: 0,
-  tire_pressure_fr: 0,
-  tire_pressure_rl: 0,
-  tire_pressure_rr: 0,
-  latitude: null,
-  longitude: null,
-  address: '未获取到定位',
-  version: '',
-  battery_heater: false,
+// 按配置时区输出 YYYY-MM-DD
+const localDateString = (d: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: getConfig().timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-/**
- * 获取真实车辆状态 (融合数据库与实时 MQTT)
- */
+// 续航口径：TeslaMate settings.preferred_range ('ideal' | 'rated')。只接受这两个值，可安全拼进 SQL 列名。
+type RangeBasis = 'ideal' | 'rated';
+let cachedRangeBasis: { value: RangeBasis; at: number } | null = null;
+
+async function getRangeBasis(pool: Pool): Promise<RangeBasis> {
+  if (cachedRangeBasis && Date.now() - cachedRangeBasis.at < 60_000) return cachedRangeBasis.value;
+  const res = await pool.query(`SELECT preferred_range FROM settings ORDER BY id LIMIT 1`);
+  const value: RangeBasis = res.rows[0]?.preferred_range === 'ideal' ? 'ideal' : 'rated';
+  cachedRangeBasis = { value, at: Date.now() };
+  return value;
+}
+
+// 库内地址的显示形式 (同 TeslaMate Grafana 的写法)
+const addressExpr = (alias: string) =>
+  `COALESCE(NULLIF(CONCAT_WS(', ', COALESCE(${alias}.name, NULLIF(CONCAT_WS(' ', ${alias}.road, ${alias}.house_number), '')), ${alias}.city), ''), ${alias}.display_name)`;
+
+// 起终点标识：同一个地理围栏或同一条地址记录视为同一地点
+const placeKeyExpr = (geofenceCol: string, addressCol: string) =>
+  `CASE WHEN ${geofenceCol} IS NOT NULL THEN 'g' || ${geofenceCol} WHEN ${addressCol} IS NOT NULL THEN 'a' || ${addressCol} END`;
+
+// ---------------------------------------------------------------------------
+// 车辆实时状态
+// ---------------------------------------------------------------------------
+
 export async function fetchCars(): Promise<Car[]> {
-  if (isDemo()) return [MOCK_CAR];
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const query = `
-      SELECT 
-        c.id,
-        c.name,
-        c.model,
-        c.trim_badging,
-        c.vin,
-        c.exterior_color,
-        c.wheel_type,
-        pos.battery_level,
-        pos.usable_battery_level,
-        pos.ideal_battery_range_km,
-        pos.est_battery_range_km,
-        pos.odometer,
-        pos.speed,
-        pos.power,
-        st.state,
-        st.start_date as since,
-        pos.inside_temp,
-        pos.outside_temp,
-        pos.is_climate_on,
-        COALESCE(pos.tpms_pressure_fl, 3.0) as tire_pressure_fl,
-        COALESCE(pos.tpms_pressure_fr, 3.0) as tire_pressure_fr,
-        COALESCE(pos.tpms_pressure_rl, 3.0) as tire_pressure_rl,
-        COALESCE(pos.tpms_pressure_rr, 3.0) as tire_pressure_rr,
-        pos.latitude,
-        pos.longitude,
-        COALESCE(g.name, addr.name, addr.road, addr.display_name, '陕西省西安市/咸阳市') as address
+    const basis = await getRangeBasis(pool);
+    const res = await pool.query(`
+      SELECT
+        c.id, c.name, c.model, c.trim_badging, c.marketing_name, c.vin, c.exterior_color, c.wheel_type,
+        pos.battery_level, pos.usable_battery_level,
+        pos.${basis}_battery_range_km AS range_km,
+        pos.est_battery_range_km, pos.odometer, pos.speed, pos.power,
+        pos.inside_temp, pos.outside_temp, pos.is_climate_on, pos.battery_heater,
+        pos.latitude, pos.longitude,
+        tp.tpms_pressure_fl, tp.tpms_pressure_fr, tp.tpms_pressure_rl, tp.tpms_pressure_rr,
+        st.state, st.start_date AS since,
+        upd.version,
+        lg.name AS last_geofence,
+        ${addressExpr('la')} AS last_address
       FROM cars c
       LEFT JOIN LATERAL (
         SELECT * FROM positions p WHERE p.car_id = c.id ORDER BY p.date DESC LIMIT 1
       ) pos ON true
       LEFT JOIN LATERAL (
-        SELECT * FROM states s WHERE s.car_id = c.id ORDER BY s.start_date DESC LIMIT 1
+        SELECT tpms_pressure_fl, tpms_pressure_fr, tpms_pressure_rl, tpms_pressure_rr
+        FROM positions p WHERE p.car_id = c.id AND p.tpms_pressure_fl IS NOT NULL
+        ORDER BY p.date DESC LIMIT 1
+      ) tp ON true
+      LEFT JOIN LATERAL (
+        SELECT state, start_date FROM states s WHERE s.car_id = c.id ORDER BY s.start_date DESC LIMIT 1
       ) st ON true
-      LEFT JOIN addresses addr ON pos.id = addr.id
-      LEFT JOIN geofences g ON true
-      ORDER BY c.id ASC;
-    `;
+      LEFT JOIN LATERAL (
+        SELECT version FROM updates u WHERE u.car_id = c.id AND u.version IS NOT NULL ORDER BY u.start_date DESC LIMIT 1
+      ) upd ON true
+      LEFT JOIN LATERAL (
+        SELECT d.end_geofence_id, d.end_address_id FROM drives d
+        WHERE d.car_id = c.id AND d.end_date IS NOT NULL ORDER BY d.start_date DESC LIMIT 1
+      ) ld ON true
+      LEFT JOIN geofences lg ON lg.id = ld.end_geofence_id
+      LEFT JOIN addresses la ON la.id = ld.end_address_id
+      ORDER BY c.display_priority, c.id
+    `);
 
-    const res = await pool.query(query);
-    if (res.rows.length === 0) return [];
-
-    return res.rows.map((row) => {
-      const mqttState = getCarMqttState(row.id);
-      const isSentry = mqttState.sentry_mode != null ? mqttState.sentry_mode : true;
-      const isLocked = mqttState.locked != null ? mqttState.locked : true;
-      const doorsOpen = mqttState.doors_open != null ? mqttState.doors_open : false;
-      const trunkOpen = mqttState.trunk_open != null ? mqttState.trunk_open : false;
-
+    return res.rows.map((row): Car => {
+      // MQTT 是 TeslaMate 发布的实时值，优先于库里最后一个位置点
+      const live = getCarMqttState(row.id);
+      const state = live.state ?? text(row.state);
+      const latitude = live.latitude ?? num(row.latitude);
+      const longitude = live.longitude ?? num(row.longitude);
+      const liveRange = basis === 'ideal' ? live.ideal_battery_range_km : live.rated_battery_range_km;
+      // 行驶中"上一段行程的终点"不是当前位置，此时只按坐标解析
+      const parked = state !== 'driving';
       return {
         id: row.id,
-        name: row.name || `Model ${row.model}`,
-        model: row.model || 'Y',
-        trim_badging: row.trim_badging || 'Standard',
-        vin: row.vin || '5YJ3E1EB8NF000000',
-        exterior_color: row.exterior_color || 'SolidBlack',
-        wheel_type: row.wheel_type || 'Standard',
-        battery_level: mqttState.battery_level != null ? mqttState.battery_level : Number(row.battery_level || 76),
-        usable_battery_level: mqttState.usable_battery_level != null ? mqttState.usable_battery_level : Number(row.usable_battery_level || 76),
-        ideal_battery_range_km: mqttState.rated_battery_range_km != null ? Number(mqttState.rated_battery_range_km.toFixed(1)) : Number(Number(row.ideal_battery_range_km || 331.2).toFixed(1)),
-        est_battery_range_km: Number(Number(row.est_battery_range_km || 310.0).toFixed(1)),
-        odometer: mqttState.odometer != null ? Number(mqttState.odometer.toFixed(1)) : Number(Number(row.odometer || 0).toFixed(1)),
-        speed: row.speed != null ? Number(row.speed) : 0,
-        power: row.power != null ? Number(row.power) : 0,
-        state: mqttState.state || row.state || 'online',
-        since: row.since ? new Date(row.since).toISOString() : null,
-        inside_temp: mqttState.inside_temp != null ? mqttState.inside_temp : (row.inside_temp != null ? Number(row.inside_temp) : 27.9),
-        outside_temp: mqttState.outside_temp != null ? mqttState.outside_temp : (row.outside_temp != null ? Number(row.outside_temp) : 28.0),
-        is_climate_on: mqttState.is_climate_on != null ? mqttState.is_climate_on : Boolean(row.is_climate_on),
-        is_locked: isLocked,
-        is_sentry_mode: isSentry,
-        doors_open: doorsOpen,
-        windows_open: Boolean(mqttState.windows_open),
-        frunk_open: Boolean(mqttState.frunk_open),
-        trunk_open: trunkOpen,
-        tire_pressure_fl: Number(Number(row.tire_pressure_fl || 3.0).toFixed(1)),
-        tire_pressure_fr: Number(Number(row.tire_pressure_fr || 3.0).toFixed(1)),
-        tire_pressure_rl: Number(Number(row.tire_pressure_rl || 3.0).toFixed(1)),
-        tire_pressure_rr: Number(Number(row.tire_pressure_rr || 3.0).toFixed(1)),
-        latitude: row.latitude ? Number(row.latitude) : 34.223881,
-        longitude: row.longitude ? Number(row.longitude) : 108.825993,
-        address: row.address || '已定位',
-        version: '2024.32.10',
-        battery_heater: false,
+        name: live.display_name ?? text(row.name),
+        model: text(row.model),
+        trim_badging: text(row.trim_badging),
+        marketing_name: text(row.marketing_name),
+        vin: text(row.vin),
+        exterior_color: text(row.exterior_color),
+        wheel_type: text(row.wheel_type),
+        battery_level: live.battery_level ?? num(row.battery_level),
+        usable_battery_level: live.usable_battery_level ?? num(row.usable_battery_level),
+        range_km: round(liveRange ?? num(row.range_km), 1),
+        est_battery_range_km: round(live.est_battery_range_km ?? num(row.est_battery_range_km), 1),
+        odometer: round(live.odometer ?? num(row.odometer), 1),
+        speed: live.speed ?? num(row.speed),
+        power: live.power ?? num(row.power),
+        state,
+        since: iso(live.since ?? row.since),
+        inside_temp: live.inside_temp ?? num(row.inside_temp),
+        outside_temp: live.outside_temp ?? num(row.outside_temp),
+        is_climate_on: live.is_climate_on ?? bool(row.is_climate_on),
+        // 以下几项 TeslaMate 只通过 MQTT 发布，库里没有
+        is_locked: live.locked ?? null,
+        is_sentry_mode: live.sentry_mode ?? null,
+        doors_open: live.doors_open ?? null,
+        windows_open: live.windows_open ?? null,
+        frunk_open: live.frunk_open ?? null,
+        trunk_open: live.trunk_open ?? null,
+        tire_pressure_fl: round(live.tpms_pressure_fl ?? num(row.tpms_pressure_fl), 2),
+        tire_pressure_fr: round(live.tpms_pressure_fr ?? num(row.tpms_pressure_fr), 2),
+        tire_pressure_rl: round(live.tpms_pressure_rl ?? num(row.tpms_pressure_rl), 2),
+        tire_pressure_rr: round(live.tpms_pressure_rr ?? num(row.tpms_pressure_rr), 2),
+        latitude,
+        longitude,
+        address: resolveAddress(
+          latitude,
+          longitude,
+          live.geofence ?? (parked ? row.last_geofence : null),
+          parked ? row.last_address : null
+        ),
+        version: live.version ?? text(row.version),
+        battery_heater: live.battery_heater ?? bool(row.battery_heater),
       };
     });
   } catch (err) {
-    console.error('fetchCars DB error:', err);
+    console.error('fetchCars error:', err);
     return [];
   }
 }
 
+async function getDefaultCarId(pool: Pool): Promise<number | null> {
+  const res = await pool.query(`SELECT id FROM cars ORDER BY display_priority, id LIMIT 1`);
+  return res.rows[0]?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// 行程
+// ---------------------------------------------------------------------------
+
 /**
- * ⚡ 智能行程合并算法 (Smart Trip Merging)
- * 将 10 分钟内、终点与起点相同/相近且中途无充电的连续行程合并为一条连贯行程
+ * 智能行程合并：同一辆车、间隔不超过 MERGE_MAX_GAP_MINUTES、且上一段终点与下一段起点是同一地点的连续行程，
+ * 合并为一条连贯行程 (临时停车、等人等)
  */
-export function mergeConsecutiveDrives(
-  drives: DriveSummary[],
-  maxGapMinutes = 10
-): DriveSummary[] {
+export function mergeConsecutiveDrives(drives: DriveSummary[]): DriveSummary[] {
   if (!drives || drives.length <= 1) return drives || [];
 
-  // 按开始时间正序排序进行线性扫描合并
-  const sorted = [...drives].sort(
-    (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-  );
-
+  const sorted = [...drives].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
   const merged: DriveSummary[] = [];
-  let currentGroup: DriveSummary[] = [sorted[0]];
+  let group: DriveSummary[] = [sorted[0]];
 
   for (let i = 1; i < sorted.length; i++) {
-    const prev = currentGroup[currentGroup.length - 1];
+    const prev = group[group.length - 1];
     const curr = sorted[i];
-
-    const prevEnd = new Date(prev.end_date).getTime();
-    const currStart = new Date(curr.start_date).getTime();
-    const gapMinutes = (currStart - prevEnd) / (1000 * 60);
-
-    const isSameVehicle = prev.car_id === curr.car_id;
-    // 间隔在 10 分钟之内
-    const isShortGap = gapMinutes >= -1 && gapMinutes <= maxGapMinutes;
-
-    // 地址相同、相近或 position_id 连贯
-    const isNearby =
-      prev.end_address === curr.start_address ||
-      (prev.end_address && curr.start_address && (prev.end_address.includes(curr.start_address) || curr.start_address.includes(prev.end_address))) ||
-      (prev.end_position_id && curr.start_position_id && prev.end_position_id === curr.start_position_id);
-
-    if (isSameVehicle && isShortGap && isNearby) {
-      currentGroup.push(curr);
+    let mergeable = false;
+    if (prev.car_id === curr.car_id && prev.end_date && prev.end_place_key && prev.end_place_key === curr.start_place_key) {
+      const gapMinutes = (new Date(curr.start_date).getTime() - new Date(prev.end_date).getTime()) / 60000;
+      mergeable = gapMinutes >= MERGE_GAP_SLACK_MINUTES && gapMinutes <= MERGE_MAX_GAP_MINUTES;
+    }
+    if (mergeable) {
+      group.push(curr);
     } else {
-      merged.push(combineDriveGroup(currentGroup));
-      currentGroup = [curr];
+      merged.push(combineDriveGroup(group));
+      group = [curr];
     }
   }
+  merged.push(combineDriveGroup(group));
 
-  if (currentGroup.length > 0) {
-    merged.push(combineDriveGroup(currentGroup));
-  }
-
-  // 最终按时间降序（最新在前）返回
   return merged.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
 }
 
@@ -307,49 +265,62 @@ function combineDriveGroup(group: DriveSummary[]): DriveSummary {
   const first = group[0];
   const last = group[group.length - 1];
 
-  const totalDistance = group.reduce((sum, d) => sum + (d.distance || 0), 0);
-  const totalDurationMin = group.reduce((sum, d) => sum + (d.duration_min || 0), 0);
-  const totalConsumptionKwh = group.reduce((sum, d) => sum + (d.consumption_kwh || 0), 0);
-  const maxSpeed = Math.max(...group.map((d) => d.speed_max || 0));
-  const maxPower = Math.max(...group.map((d) => d.power_max || 0));
-  const minPower = Math.min(...group.map((d) => d.power_min || 0));
-  const totalAscent = group.reduce((sum, d) => sum + (d.ascent || 0), 0);
-  const totalDescent = group.reduce((sum, d) => sum + (d.descent || 0), 0);
+  // 任何一段缺值，合计就是未知，而不是把缺的当 0
+  const sumOrNull = (pick: (d: DriveSummary) => number | null | undefined): number | null => {
+    let total = 0;
+    for (const d of group) {
+      const v = pick(d);
+      if (v == null) return null;
+      total += v;
+    }
+    return total;
+  };
+  const extreme = (pick: (d: DriveSummary) => number | null | undefined, fn: (...n: number[]) => number): number | null => {
+    const values = group.map(pick).filter((v): v is number => v != null);
+    return values.length > 0 ? fn(...values) : null;
+  };
 
-  // 计算中途总停顿时间
-  const firstStart = new Date(first.start_date).getTime();
-  const lastEnd = new Date(last.end_date).getTime();
-  const spanDurationMin = Math.round((lastEnd - firstStart) / (1000 * 60));
-  const stopoverMin = Math.max(0, spanDurationMin - totalDurationMin);
+  const totalDistance = sumOrNull((d) => d.distance);
+  const totalDuration = sumOrNull((d) => d.duration_min);
+  const totalConsumption = sumOrNull((d) => d.consumption_kwh);
 
-  // 综合能耗
-  const avgEfficiency =
-    totalDistance > 0
-      ? Math.round((totalConsumptionKwh * 1000) / totalDistance)
-      : first.efficiency_wh_km;
-  const avgSpeed =
-    totalDurationMin > 0
-      ? Number(((totalDistance / totalDurationMin) * 60).toFixed(1))
-      : first.speed_avg;
+  let stopoverMin: number | undefined;
+  if (last.end_date && totalDuration != null) {
+    const spanMin = Math.round((new Date(last.end_date).getTime() - new Date(first.start_date).getTime()) / 60000);
+    stopoverMin = Math.max(0, spanMin - totalDuration);
+  }
+
+  // 平均气温按时长加权
+  let tempWeighted = 0;
+  let tempWeight = 0;
+  for (const d of group) {
+    if (d.outside_temp_avg != null && d.duration_min != null && d.duration_min > 0) {
+      tempWeighted += d.outside_temp_avg * d.duration_min;
+      tempWeight += d.duration_min;
+    }
+  }
 
   return {
     ...first,
-    id: first.id, // 主 ID 使用第一段 ID
     end_date: last.end_date,
     end_address: last.end_address,
     end_battery_level: last.end_battery_level,
     end_position_id: last.end_position_id,
-    duration_min: totalDurationMin,
-    distance: Number(totalDistance.toFixed(1)),
-    speed_max: maxSpeed,
-    speed_avg: avgSpeed,
-    power_max: maxPower,
-    power_min: minPower,
-    consumption_kwh: Number(totalConsumptionKwh.toFixed(2)),
-    efficiency_wh_km: avgEfficiency,
-    ascent: totalAscent,
-    descent: totalDescent,
-    // ⚡ 智能合并标记
+    end_place_key: last.end_place_key,
+    duration_min: totalDuration,
+    distance: round(totalDistance, 1),
+    speed_max: extreme((d) => d.speed_max, Math.max),
+    speed_avg:
+      totalDistance != null && totalDuration != null && totalDuration > 0
+        ? round((totalDistance / totalDuration) * 60, 1)
+        : null,
+    power_max: extreme((d) => d.power_max, Math.max),
+    power_min: extreme((d) => d.power_min, Math.min),
+    consumption_kwh: round(totalConsumption, 2),
+    efficiency_wh_km: efficiencyWhKm(totalConsumption, totalDistance),
+    ascent: sumOrNull((d) => d.ascent),
+    descent: sumOrNull((d) => d.descent),
+    outside_temp_avg: tempWeight > 0 ? round(tempWeighted / tempWeight, 1) : null,
     is_merged: true,
     merged_count: group.length,
     merged_drive_ids: group.map((d) => d.id),
@@ -357,126 +328,99 @@ function combineDriveGroup(group: DriveSummary[]): DriveSummary {
   };
 }
 
+// 距离太短的行程能耗没有意义
+function efficiencyWhKm(consumptionKwh: number | null, distanceKm: number | null): number | null {
+  if (consumptionKwh == null || distanceKm == null || distanceKm < MIN_DISTANCE_FOR_EFFICIENCY_KM) return null;
+  return Math.round((consumptionKwh * 1000) / distanceKm);
+}
+
+interface DriveQuery {
+  carId?: number | null;
+  driveIds?: number[];
+  from?: Date;
+  to?: Date;
+  limit?: number | null;
+  offset?: number;
+}
+
+async function queryDrives(pool: Pool, q: DriveQuery): Promise<DriveSummary[]> {
+  const basis = await getRangeBasis(pool);
+  const res = await pool.query(
+    `
+    SELECT
+      d.id, d.car_id, d.start_date, d.end_date, d.duration_min, d.distance,
+      d.speed_max, d.power_max, d.power_min, d.ascent, d.descent, d.outside_temp_avg,
+      d.start_position_id, d.end_position_id,
+      (d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency AS consumption_kwh,
+      sp.battery_level AS start_battery_level, ep.battery_level AS end_battery_level,
+      sp.latitude AS start_lat, sp.longitude AS start_lng,
+      ep.latitude AS end_lat, ep.longitude AS end_lng,
+      sg.name AS start_geofence, eg.name AS end_geofence,
+      ${addressExpr('sa')} AS start_db_address,
+      ${addressExpr('ea')} AS end_db_address,
+      ${placeKeyExpr('d.start_geofence_id', 'd.start_address_id')} AS start_place_key,
+      ${placeKeyExpr('d.end_geofence_id', 'd.end_address_id')} AS end_place_key
+    FROM drives d
+    JOIN cars c ON c.id = d.car_id
+    LEFT JOIN positions sp ON sp.id = d.start_position_id
+    LEFT JOIN positions ep ON ep.id = d.end_position_id
+    LEFT JOIN addresses sa ON sa.id = d.start_address_id
+    LEFT JOIN addresses ea ON ea.id = d.end_address_id
+    LEFT JOIN geofences sg ON sg.id = d.start_geofence_id
+    LEFT JOIN geofences eg ON eg.id = d.end_geofence_id
+    WHERE d.end_date IS NOT NULL
+      AND ($1::int IS NULL OR d.car_id = $1)
+      AND ($2::int[] IS NULL OR d.id = ANY($2))
+      AND ($3::timestamp IS NULL OR d.start_date >= $3)
+      AND ($4::timestamp IS NULL OR d.start_date <= $4)
+    ORDER BY d.start_date DESC
+    LIMIT $5 OFFSET $6
+    `,
+    [q.carId ?? null, q.driveIds ?? null, q.from ?? null, q.to ?? null, q.limit ?? null, q.offset ?? 0]
+  );
+
+  return res.rows.map((row): DriveSummary => {
+    const distance = num(row.distance);
+    const duration = num(row.duration_min);
+    const consumption = num(row.consumption_kwh);
+    return {
+      id: row.id,
+      car_id: row.car_id,
+      start_date: iso(row.start_date) as string,
+      end_date: iso(row.end_date),
+      duration_min: duration,
+      distance: round(distance, 1),
+      speed_max: num(row.speed_max),
+      speed_avg: distance != null && duration != null && duration > 0 ? round((distance / duration) * 60, 1) : null,
+      power_max: num(row.power_max),
+      power_min: num(row.power_min),
+      start_address: resolveAddress(num(row.start_lat), num(row.start_lng), row.start_geofence, row.start_db_address),
+      end_address: resolveAddress(num(row.end_lat), num(row.end_lng), row.end_geofence, row.end_db_address),
+      start_battery_level: num(row.start_battery_level),
+      end_battery_level: num(row.end_battery_level),
+      consumption_kwh: round(consumption, 2),
+      efficiency_wh_km: efficiencyWhKm(consumption, distance),
+      start_position_id: row.start_position_id,
+      end_position_id: row.end_position_id,
+      ascent: num(row.ascent),
+      descent: num(row.descent),
+      outside_temp_avg: round(num(row.outside_temp_avg), 1),
+      start_place_key: row.start_place_key,
+      end_place_key: row.end_place_key,
+    };
+  });
+}
+
 /**
- * 获取真实行程列表（已智能合并10分钟内临时锁车中断行程）
+ * 行程列表 (按开始时间倒序)。enableMerge 时在这一页范围内做智能合并。
  */
-export async function fetchDrives(
-  carId?: number,
-  limit = 50,
-  offset = 0,
-  enableMerge = true
-): Promise<DriveSummary[]> {
-  if (isDemo()) return enableMerge ? mergeConsecutiveDrives(MOCK_DRIVES) : MOCK_DRIVES;
+export async function fetchDrives(carId?: number, limit = 50, offset = 0, enableMerge = false): Promise<DriveSummary[]> {
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const query = `
-      SELECT 
-        d.id,
-        d.car_id,
-        d.start_date,
-        d.end_date,
-        COALESCE(d.duration_min, 1) as duration_min,
-        COALESCE(d.distance, 0) as distance,
-        COALESCE(d.speed_max, 0) as speed_max,
-        CASE 
-          WHEN COALESCE(d.duration_min, 0) > 0 THEN ROUND((d.distance / d.duration_min * 60)::numeric, 1)
-          ELSE 0 
-        END as speed_avg,
-        COALESCE(d.power_max, 0) as power_max,
-        COALESCE(d.power_min, 0) as power_min,
-        COALESCE(start_addr.name, start_addr.road, start_addr.display_name, sg.name) as start_address_raw,
-        COALESCE(end_addr.name, end_addr.road, end_addr.display_name, eg.name) as end_address_raw,
-        sg.name as start_geo,
-        eg.name as end_geo,
-        sp.latitude as start_lat,
-        sp.longitude as start_lng,
-        ep.latitude as end_lat,
-        ep.longitude as end_lng,
-        COALESCE(sp.battery_level, 0) as start_battery_level,
-        COALESCE(ep.battery_level, 0) as end_battery_level,
-        CASE
-          WHEN (d.start_ideal_range_km - d.end_ideal_range_km) > 0 
-          THEN ROUND(((d.start_ideal_range_km - d.end_ideal_range_km) * 0.138)::numeric, 2)
-          WHEN d.distance > 0 THEN ROUND((d.distance * 0.138)::numeric, 2)
-          ELSE 0.05
-        END as consumption_kwh,
-        CASE 
-          WHEN d.distance >= 0.2 AND (d.start_ideal_range_km - d.end_ideal_range_km) > 0
-          THEN ROUND((((d.start_ideal_range_km - d.end_ideal_range_km) * 138) / d.distance)::numeric, 0)
-          ELSE 138 
-        END as efficiency_wh_km,
-        COALESCE(d.ascent, 0) as ascent,
-        COALESCE(d.descent, 0) as descent,
-        COALESCE(d.outside_temp_avg, 28) as outside_temp_avg,
-        d.start_position_id,
-        d.end_position_id
-      FROM drives d
-      LEFT JOIN addresses start_addr ON d.start_address_id = start_addr.id
-      LEFT JOIN addresses end_addr ON d.end_address_id = end_addr.id
-      LEFT JOIN geofences sg ON d.start_geofence_id = sg.id
-      LEFT JOIN geofences eg ON d.end_geofence_id = eg.id
-      LEFT JOIN positions sp ON d.start_position_id = sp.id
-      LEFT JOIN positions ep ON d.end_position_id = ep.id
-      WHERE ($1::int IS NULL OR d.car_id = $1)
-      ORDER BY d.start_date DESC
-      LIMIT $2 OFFSET $3;
-    `;
-
-    // 查询稍多数据以支持连续平滑合并
-    const fetchLimit = enableMerge ? Math.min(200, limit * 2) : limit;
-    const res = await pool.query(query, [carId || null, fetchLimit, offset]);
-    if (res.rows.length === 0) return [];
-
-    const rawList: DriveSummary[] = await Promise.all(
-      res.rows.map(async (row) => {
-        const startAddr =
-          row.start_address_raw ||
-          (await reverseGeocodeAddress(
-            row.start_lat ? Number(row.start_lat) : null,
-            row.start_lng ? Number(row.start_lng) : null,
-            row.start_geo
-          ));
-
-        const endAddr =
-          row.end_address_raw ||
-          (await reverseGeocodeAddress(
-            row.end_lat ? Number(row.end_lat) : null,
-            row.end_lng ? Number(row.end_lng) : null,
-            row.end_geo
-          ));
-
-        return {
-          id: row.id,
-          car_id: row.car_id,
-          start_date: new Date(row.start_date).toISOString(),
-          end_date: row.end_date ? new Date(row.end_date).toISOString() : new Date(row.start_date).toISOString(),
-          duration_min: Number(row.duration_min || 1),
-          distance: Number(Number(row.distance || 0).toFixed(1)),
-          speed_max: Number(row.speed_max || 0),
-          speed_avg: Number(row.speed_avg || 0),
-          power_max: Number(row.power_max || 0),
-          power_min: Number(row.power_min || 0),
-          start_address: startAddr,
-          end_address: endAddr,
-          start_battery_level: Number(row.start_battery_level || 0),
-          end_battery_level: Number(row.end_battery_level || 0),
-          consumption_kwh: Math.max(0.1, Number(row.consumption_kwh || 0)),
-          efficiency_wh_km: Math.max(100, Math.min(350, Number(row.efficiency_wh_km || 148))),
-          ascent: Number(row.ascent || 0),
-          descent: Number(row.descent || 0),
-          outside_temp_avg: Number(row.outside_temp_avg || 28),
-          start_position_id: row.start_position_id,
-          end_position_id: row.end_position_id,
-        };
-      })
-    );
-
-    if (!enableMerge) return rawList.slice(0, limit);
-
-    const mergedList = mergeConsecutiveDrives(rawList);
-    return mergedList.slice(0, limit);
+    const drives = await queryDrives(pool, { carId, limit, offset });
+    return enableMerge ? mergeConsecutiveDrives(drives) : drives;
   } catch (err) {
     console.error('fetchDrives error:', err);
     return [];
@@ -484,86 +428,49 @@ export async function fetchDrives(
 }
 
 /**
- * 获取单次行程详细 GPS 轨迹（支持合并行程的多段轨迹平滑拼接）
+ * 行程详情：driveId 可以是任意一段原始行程的 id，返回它所在的合并行程及完整轨迹
  */
 export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | null> {
-  if (isDemo()) {
-    const match = MOCK_DRIVES.find((d) => d.id === driveId);
-    return match ? { ...MOCK_DRIVE_DETAIL, ...match } : MOCK_DRIVE_DETAIL;
-  }
   const pool = getDbPool();
   if (!pool) return null;
 
   try {
-    // 1. 获取包含该 driveId 的行程列表（带合并识别）
-    const allDrives = await fetchDrives(undefined, 100, 0, true);
-    const targetDrive =
-      allDrives.find((d) => d.id === driveId || (d.merged_drive_ids && d.merged_drive_ids.includes(driveId))) ||
-      allDrives.find((d) => d.id === driveId);
+    const [target] = await queryDrives(pool, { driveIds: [driveId] });
+    if (!target) return null;
 
-    const driveIdsToFetch = targetDrive?.merged_drive_ids || [driveId];
+    // 在目标行程前后各一天内找同车行程，重建它所属的合并组
+    const dayMs = 24 * 3600 * 1000;
+    const start = new Date(target.start_date).getTime();
+    const neighbours = await queryDrives(pool, {
+      carId: target.car_id,
+      from: new Date(start - dayMs),
+      to: new Date(start + dayMs),
+    });
+    const drive =
+      mergeConsecutiveDrives(neighbours).find((d) => d.id === driveId || d.merged_drive_ids?.includes(driveId)) ?? target;
 
-    // 2. 查询这些行程的轨迹点集合
     const posRes = await pool.query(
       `SELECT id, date, latitude, longitude, speed, power, battery_level, odometer, elevation, inside_temp, outside_temp
        FROM positions
        WHERE drive_id = ANY($1::int[])
        ORDER BY date ASC`,
-      [driveIdsToFetch]
+      [drive.merged_drive_ids ?? [drive.id]]
     );
 
-    if (!targetDrive) {
-      // 兜底单条查询
-      const singleDriveRes = await pool.query(`SELECT * FROM drives WHERE id = $1`, [driveId]);
-      if (singleDriveRes.rows.length === 0) return null;
-      const row = singleDriveRes.rows[0];
-      return {
-        id: row.id,
-        car_id: row.car_id,
-        start_date: new Date(row.start_date).toISOString(),
-        end_date: row.end_date ? new Date(row.end_date).toISOString() : new Date(row.start_date).toISOString(),
-        duration_min: Number(row.duration_min || 1),
-        distance: Number(Number(row.distance || 0).toFixed(1)),
-        speed_max: Number(row.speed_max || 0),
-        speed_avg: Number((row.distance / (row.duration_min || 1) * 60).toFixed(1)),
-        power_max: Number(row.power_max || 0),
-        power_min: Number(row.power_min || 0),
-        start_address: '起点位置',
-        end_address: '目的地',
-        start_battery_level: 0,
-        end_battery_level: 0,
-        consumption_kwh: 0.5,
-        efficiency_wh_km: 148,
-        positions: posRes.rows.map((p) => ({
-          id: p.id,
-          date: new Date(p.date).toISOString(),
-          latitude: Number(p.latitude),
-          longitude: Number(p.longitude),
-          speed: Number(p.speed || 0),
-          power: Number(p.power || 0),
-          battery_level: Number(p.battery_level || 0),
-          odometer: Number(p.odometer || 0),
-          elevation: p.elevation != null ? Number(p.elevation) : 0,
-          inside_temp: p.inside_temp != null ? Number(p.inside_temp) : null,
-          outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
-        })),
-      };
-    }
-
     return {
-      ...targetDrive,
+      ...drive,
       positions: posRes.rows.map((p) => ({
         id: p.id,
-        date: new Date(p.date).toISOString(),
+        date: iso(p.date) as string,
         latitude: Number(p.latitude),
         longitude: Number(p.longitude),
-        speed: Number(p.speed || 0),
-        power: Number(p.power || 0),
-        battery_level: Number(p.battery_level || 0),
-        odometer: Number(p.odometer || 0),
-        elevation: p.elevation != null ? Number(p.elevation) : 0,
-        inside_temp: p.inside_temp != null ? Number(p.inside_temp) : null,
-        outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
+        speed: num(p.speed),
+        power: num(p.power),
+        battery_level: num(p.battery_level),
+        odometer: num(p.odometer),
+        elevation: num(p.elevation),
+        inside_temp: num(p.inside_temp),
+        outside_temp: num(p.outside_temp),
       })),
     };
   } catch (err) {
@@ -572,173 +479,148 @@ export async function fetchDriveDetail(driveId: number): Promise<DriveDetail | n
   }
 }
 
-/**
- * 🅿️ 获取每一段真实停车记录
- */
+// ---------------------------------------------------------------------------
+// 停车 (相邻两段行程之间的静置)
+// ---------------------------------------------------------------------------
+
+// 停车段 = 某段行程结束到同一辆车下一段行程开始；最后一段行程之后是"当前停车"，终值取该车最新位置点
+const parkingCte = (basis: RangeBasis) => `
+  parking AS (
+    SELECT
+      d.id, d.car_id, d.end_date AS start_date, d.end_position_id,
+      d.end_geofence_id AS geofence_id, d.end_address_id AS address_id,
+      d.end_${basis}_range_km AS start_range_km,
+      LEAD(d.start_date) OVER w AS next_start,
+      LEAD(d.start_${basis}_range_km) OVER w AS next_range_km,
+      LEAD(d.start_position_id) OVER w AS next_position_id
+    FROM drives d
+    WHERE d.end_date IS NOT NULL
+    WINDOW w AS (PARTITION BY d.car_id ORDER BY d.start_date)
+  ),
+  parking_full AS (
+    SELECT
+      p.id, p.car_id, p.start_date, p.geofence_id, p.address_id, p.start_range_km,
+      p.next_start AS end_date,
+      (p.next_start IS NULL) AS is_current,
+      COALESCE(p.next_range_km, cur.${basis}_battery_range_km) AS end_range_km,
+      sp.battery_level AS start_battery_level,
+      COALESCE(np.battery_level, cur.battery_level) AS end_battery_level,
+      sp.latitude, sp.longitude,
+      EXTRACT(EPOCH FROM (COALESCE(p.next_start, cur.date) - p.start_date)) AS duration_sec,
+      c.efficiency,
+      EXISTS (
+        SELECT 1 FROM charging_processes cp
+        WHERE cp.car_id = p.car_id AND cp.start_date >= p.start_date
+          AND (p.next_start IS NULL OR cp.start_date < p.next_start)
+      ) AS has_charge
+    FROM parking p
+    JOIN cars c ON c.id = p.car_id
+    LEFT JOIN positions sp ON sp.id = p.end_position_id
+    LEFT JOIN positions np ON np.id = p.next_position_id
+    LEFT JOIN LATERAL (
+      SELECT date, battery_level, ${basis}_battery_range_km
+      FROM positions lp WHERE lp.car_id = p.car_id ORDER BY lp.date DESC LIMIT 1
+    ) cur ON p.next_start IS NULL
+  )`;
+
+function mapParking(row: any): ParkingSummary {
+  const durationSec = num(row.duration_sec);
+  const startRange = num(row.start_range_km);
+  const endRange = num(row.end_range_km);
+  const efficiency = num(row.efficiency);
+  const hasCharge = Boolean(row.has_charge);
+
+  // 期间充过电：续航变化不代表损耗，损耗未知
+  const rangeLost = !hasCharge && startRange != null && endRange != null ? startRange - endRange : null;
+  const energyLost = rangeLost != null && efficiency != null ? rangeLost * efficiency : null;
+  const hours = durationSec != null && durationSec > 0 ? durationSec / 3600 : null;
+  const homeName = getConfig().homeGeofenceName;
+
+  return {
+    id: row.id,
+    car_id: row.car_id,
+    start_date: iso(row.start_date) as string,
+    end_date: iso(row.end_date),
+    duration_min: durationSec != null ? Math.round(durationSec / 60) : null,
+    start_range_km: round(startRange, 1),
+    end_range_km: round(endRange, 1),
+    start_battery_level: num(row.start_battery_level),
+    end_battery_level: num(row.end_battery_level),
+    range_lost_km: round(rangeLost, 1),
+    energy_lost_kwh: round(energyLost, 2),
+    drain_rate_kwh_per_hour: energyLost != null && hours != null ? round(energyLost / hours, 3) : null,
+    address: resolveAddress(num(row.latitude), num(row.longitude), row.geofence_name, row.db_address),
+    // 只有配置了 HOME_GEOFENCE_NAME 才能判断是不是家
+    is_home: homeName == null ? null : row.geofence_name === homeName,
+    has_charge: hasCharge,
+    is_current: Boolean(row.is_current),
+  };
+}
+
+async function queryParkings(pool: Pool, carId: number | null, parkingId: number | null, limit: number | null, offset: number) {
+  const basis = await getRangeBasis(pool);
+  const res = await pool.query(
+    `
+    WITH ${parkingCte(basis)}
+    SELECT pf.*, g.name AS geofence_name, ${addressExpr('a')} AS db_address
+    FROM parking_full pf
+    LEFT JOIN geofences g ON g.id = pf.geofence_id
+    LEFT JOIN addresses a ON a.id = pf.address_id
+    WHERE pf.duration_sec >= $1
+      AND ($2::int IS NULL OR pf.car_id = $2)
+      AND ($3::int IS NULL OR pf.id = $3)
+    ORDER BY pf.start_date DESC
+    LIMIT $4 OFFSET $5
+    `,
+    [MIN_PARKING_SECONDS, carId, parkingId, limit, offset]
+  );
+  return res.rows.map(mapParking);
+}
+
 export async function fetchParkings(carId?: number, limit = 50, offset = 0): Promise<ParkingSummary[]> {
-  if (isDemo()) return MOCK_PARKING;
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const query = `
-      WITH drive_pairs AS (
-        SELECT 
-          d1.id as prev_drive_id,
-          d1.car_id,
-          d1.end_date as parking_start,
-          d1.end_ideal_range_km as start_ideal_km,
-          COALESCE(ep.battery_level, 0) as start_battery_level,
-          d1.end_address_id as address_id,
-          d1.end_geofence_id as geofence_id,
-          ep.latitude as parking_lat,
-          ep.longitude as parking_lng,
-          d2.id as next_drive_id,
-          COALESCE(d2.start_date, (SELECT MAX(date) FROM positions WHERE car_id = d1.car_id)) as parking_end,
-          COALESCE(d2.start_ideal_range_km, (SELECT ideal_battery_range_km FROM positions WHERE car_id = d1.car_id ORDER BY date DESC LIMIT 1)) as end_ideal_km,
-          COALESCE(sp.battery_level, (SELECT battery_level FROM positions WHERE car_id = d1.car_id ORDER BY date DESC LIMIT 1), 0) as end_battery_level,
-          (
-            SELECT COUNT(*) > 0 
-            FROM charging_processes cp 
-            WHERE cp.start_date >= d1.end_date AND (d2.start_date IS NULL OR cp.start_date <= d2.start_date)
-          ) as has_charge,
-          (d2.id IS NULL) as is_current
-        FROM drives d1
-        LEFT JOIN LATERAL (
-          SELECT * FROM drives 
-          WHERE start_date > d1.end_date AND ($1::int IS NULL OR car_id = $1)
-          ORDER BY start_date ASC 
-          LIMIT 1
-        ) d2 ON true
-        LEFT JOIN positions ep ON d1.end_position_id = ep.id
-        LEFT JOIN positions sp ON d2.start_position_id = sp.id
-        WHERE ($1::int IS NULL OR d1.car_id = $1) AND d1.end_date IS NOT NULL
-      )
-      SELECT 
-        dp.prev_drive_id as id,
-        dp.car_id,
-        dp.parking_start as start_date,
-        dp.parking_end as end_date,
-        GREATEST(1, ROUND(EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) / 60)) as duration_min,
-        dp.start_ideal_km as start_ideal_range_km,
-        dp.end_ideal_km as end_ideal_range_km,
-        dp.start_battery_level,
-        dp.end_battery_level,
-        dp.has_charge,
-        dp.is_current,
-        dp.parking_lat,
-        dp.parking_lng,
-        COALESCE(g.name, addr.name, addr.road) as raw_address
-      FROM drive_pairs dp
-      LEFT JOIN geofences g ON dp.geofence_id = g.id
-      LEFT JOIN addresses addr ON dp.address_id = addr.id
-      WHERE EXTRACT(EPOCH FROM (dp.parking_end - dp.parking_start)) >= 120 OR dp.is_current = true
-      ORDER BY dp.parking_start DESC
-      LIMIT $2 OFFSET $3;
-    `;
-
-    const res = await pool.query(query, [carId || null, limit, offset]);
-    if (res.rows.length === 0) return [];
-
-    return await Promise.all(
-      res.rows.map(async (row) => {
-        const durationMin = Math.max(1, Number(row.duration_min || 1));
-        const hours = durationMin / 60.0;
-        const startIdeal = Number(row.start_ideal_range_km || 0);
-        const endIdeal = Number(row.end_ideal_range_km || 0);
-        const hasCharge = Boolean(row.has_charge);
-
-        let rangeLost = 0;
-        let energyLost = 0;
-        let drainRate = 0;
-
-        if (!hasCharge && startIdeal >= endIdeal) {
-          rangeLost = Number((startIdeal - endIdeal).toFixed(1));
-          energyLost = Number((rangeLost * 0.155).toFixed(2));
-          drainRate = hours > 0 ? Number((energyLost / hours).toFixed(3)) : 0;
-        } else if (!hasCharge && startIdeal < endIdeal) {
-          rangeLost = 0;
-          energyLost = 0.02;
-          drainRate = 0.005;
-        } else {
-          energyLost = 0.1;
-          rangeLost = 0;
-          drainRate = 0.01;
-        }
-
-        const address =
-          row.raw_address ||
-          (await reverseGeocodeAddress(
-            row.parking_lat ? Number(row.parking_lat) : null,
-            row.parking_lng ? Number(row.parking_lng) : null
-          ));
-
-        return {
-          id: row.id,
-          car_id: row.car_id,
-          start_date: new Date(row.start_date).toISOString(),
-          end_date: new Date(row.end_date).toISOString(),
-          duration_min: durationMin,
-          start_ideal_range_km: Number(startIdeal.toFixed(1)),
-          end_ideal_range_km: Number(endIdeal.toFixed(1)),
-          start_battery_level: Number(row.start_battery_level || 0),
-          end_battery_level: Number(row.end_battery_level || 0),
-          range_lost_km: rangeLost,
-          energy_lost_kwh: energyLost,
-          drain_rate_kwh_per_hour: drainRate,
-          address: address || '常用停车点',
-          is_home: row.raw_address === '家',
-          has_charge: hasCharge,
-        };
-      })
-    );
+    return await queryParkings(pool, carId ?? null, null, limit, offset);
   } catch (err) {
     console.error('fetchParkings error:', err);
     return [];
   }
 }
 
-/**
- * 🅿️ 获取单次停车详情
- */
 export async function fetchParkingDetail(parkingId: number): Promise<ParkingDetail | null> {
-  if (isDemo()) {
-    const summary = MOCK_PARKING.find((p) => p.id === parkingId) || MOCK_PARKING[0];
-    const pts = Array.from({ length: 12 }, (_, i) => ({
-      date: new Date(new Date(summary.start_date).getTime() + i * 30 * 60 * 1000).toISOString(),
-      battery_level: Math.round(summary.start_battery_level - (i / 11) * Math.max(1, summary.start_battery_level - summary.end_battery_level)),
-      ideal_battery_range_km: Number((summary.start_ideal_range_km - (i / 11) * summary.range_lost_km).toFixed(1)),
-      inside_temp: 24.0,
-      outside_temp: 26.5,
-    }));
-    return { ...summary, points: pts };
-  }
-
   const pool = getDbPool();
   if (!pool) return null;
 
   try {
-    const list = await fetchParkings(undefined, 100, 0);
-    const summary = list.find((p) => p.id === parkingId);
+    const [summary] = await queryParkings(pool, null, parkingId, 1, 0);
     if (!summary) return null;
 
-    const posRes = await pool.query(
-      `SELECT date, battery_level, ideal_battery_range_km, inside_temp, outside_temp
-       FROM positions
-       WHERE date >= $1 AND date <= $2
-       ORDER BY date ASC
-       LIMIT 100`,
-      [summary.start_date, summary.end_date]
+    const basis = await getRangeBasis(pool);
+    // 均匀抽样，避免长时间停车的曲线被截断
+    const pointsRes = await pool.query(
+      `
+      SELECT date, battery_level, range_km, inside_temp, outside_temp FROM (
+        SELECT date, battery_level, ${basis}_battery_range_km AS range_km, inside_temp, outside_temp,
+               ROW_NUMBER() OVER (ORDER BY date) AS rn, COUNT(*) OVER () AS total
+        FROM positions
+        WHERE car_id = $1 AND date >= $2 AND ($3::timestamp IS NULL OR date <= $3)
+      ) s
+      WHERE rn = 1 OR rn = total OR rn % GREATEST(1, CEIL(total::numeric / $4)::int) = 0
+      ORDER BY date
+      `,
+      [summary.car_id, summary.start_date, summary.end_date, PARKING_CURVE_TARGET_POINTS]
     );
 
     return {
       ...summary,
-      points: posRes.rows.map((p) => ({
-        date: new Date(p.date).toISOString(),
-        battery_level: Number(p.battery_level || summary.start_battery_level),
-        ideal_battery_range_km: Number(p.ideal_battery_range_km || summary.start_ideal_range_km),
-        inside_temp: p.inside_temp != null ? Number(p.inside_temp) : null,
-        outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
+      points: pointsRes.rows.map((p) => ({
+        date: iso(p.date) as string,
+        battery_level: num(p.battery_level),
+        range_km: round(num(p.range_km), 1),
+        inside_temp: num(p.inside_temp),
+        outside_temp: num(p.outside_temp),
       })),
     };
   } catch (err) {
@@ -747,110 +629,114 @@ export async function fetchParkingDetail(parkingId: number): Promise<ParkingDeta
   }
 }
 
-/**
- * 获取真实充电记录列表
- */
-export async function fetchCharges(carId?: number, limit = 50, offset = 0): Promise<ChargeSummary[]> {
-  if (isDemo()) return MOCK_CHARGES;
-  const pool = getDbPool();
+// ---------------------------------------------------------------------------
+// 充电
+// ---------------------------------------------------------------------------
+
+// 充电费用优先级：汉化仪表盘的分时电价结果 > TeslaMate 按地理围栏电价算出的 cost > 配置的电价估算 > 未知
+// $price 为 NULL 时第三项自然为 NULL
+const chargeCostExpr = (priceParam: string) =>
+  `COALESCE(tc.cost_tou, cp.cost, ${priceParam}::numeric * COALESCE(cp.charge_energy_used, cp.charge_energy_added))`;
+
+async function queryCharges(pool: Pool, carId: number | null, chargeId: number | null, limit: number | null, offset: number) {
+  const basis = await getRangeBasis(pool);
   const touJoin = await getTouCostJoin(pool);
+  const price = getConfig().electricityPriceCnyPerKwh;
+  const res = await pool.query(
+    `
+    SELECT
+      cp.id, cp.car_id, cp.start_date, cp.end_date, cp.duration_min,
+      cp.charge_energy_added, cp.charge_energy_used,
+      cp.start_battery_level, cp.end_battery_level,
+      cp.start_${basis}_range_km AS start_range_km, cp.end_${basis}_range_km AS end_range_km,
+      tc.cost_tou, cp.cost AS teslamate_cost,
+      ${chargeCostExpr('$5')} AS cost,
+      pos.latitude, pos.longitude,
+      g.name AS geofence_name, ${addressExpr('a')} AS db_address,
+      ch.max_power, ch.fast_present, ch.fast_brand
+    FROM charging_processes cp
+    ${touJoin}
+    LEFT JOIN positions pos ON pos.id = cp.position_id
+    LEFT JOIN addresses a ON a.id = cp.address_id
+    LEFT JOIN geofences g ON g.id = cp.geofence_id
+    LEFT JOIN LATERAL (
+      SELECT MAX(c.charger_power) AS max_power,
+             BOOL_OR(c.fast_charger_present) AS fast_present,
+             MAX(NULLIF(c.fast_charger_brand, '')) AS fast_brand
+      FROM charges c WHERE c.charging_process_id = cp.id
+    ) ch ON true
+    WHERE ($1::int IS NULL OR cp.car_id = $1)
+      AND ($2::int IS NULL OR cp.id = $2)
+    ORDER BY cp.start_date DESC
+    LIMIT $3 OFFSET $4
+    `,
+    [carId, chargeId, limit, offset, price]
+  );
+
+  return res.rows.map((row): ChargeSummary => {
+    const cost = num(row.cost);
+    let costSource: ChargeSummary['cost_source'] = null;
+    if (cost != null) {
+      costSource = row.cost_tou != null ? 'tou' : row.teslamate_cost != null ? 'teslamate' : 'configured';
+    }
+    return {
+      id: row.id,
+      car_id: row.car_id,
+      start_date: iso(row.start_date) as string,
+      end_date: iso(row.end_date),
+      duration_min: num(row.duration_min),
+      charge_energy_added: round(num(row.charge_energy_added), 2),
+      charge_energy_used: round(num(row.charge_energy_used), 2),
+      start_battery_level: num(row.start_battery_level),
+      end_battery_level: num(row.end_battery_level),
+      start_range_km: round(num(row.start_range_km), 1),
+      end_range_km: round(num(row.end_range_km), 1),
+      cost: round(cost, 2),
+      cost_source: costSource,
+      address: resolveAddress(num(row.latitude), num(row.longitude), row.geofence_name, row.db_address),
+      is_fast_charge: bool(row.fast_present),
+      fast_charger_brand: text(row.fast_brand),
+      max_charger_power_kw: num(row.max_power),
+    };
+  });
+}
+
+export async function fetchCharges(carId?: number, limit = 50, offset = 0): Promise<ChargeSummary[]> {
+  const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const query = `
-      SELECT 
-        cp.id,
-        cp.car_id,
-        cp.start_date,
-        cp.end_date,
-        COALESCE(cp.duration_min, 1) as duration_min,
-        COALESCE(cp.charge_energy_added, 0) as charge_energy_added,
-        COALESCE(cp.charge_energy_used, cp.charge_energy_added, 0) as charge_energy_used,
-        COALESCE(cp.start_battery_level, 0) as start_battery_level,
-        COALESCE(cp.end_battery_level, 100) as end_battery_level,
-        COALESCE(cp.start_ideal_range_km, 0) as start_ideal_range_km,
-        COALESCE(cp.end_ideal_range_km, 0) as end_ideal_range_km,
-        COALESCE(tc.cost_tou, cp.cost, ROUND((cp.charge_energy_added * 0.311)::numeric, 2)) as cost,
-        COALESCE(g.name, addr.name, addr.road, '家') as location_name
-      FROM charging_processes cp
-      ${touJoin}
-      LEFT JOIN addresses addr ON cp.address_id = addr.id
-      LEFT JOIN geofences g ON cp.geofence_id = g.id
-      WHERE ($1::int IS NULL OR cp.car_id = $1)
-      ORDER BY cp.start_date DESC
-      LIMIT $2 OFFSET $3;
-    `;
-
-    const res = await pool.query(query, [carId || null, limit, offset]);
-    if (res.rows.length === 0) return [];
-
-    return res.rows.map((row) => ({
-      id: row.id,
-      car_id: row.car_id,
-      start_date: new Date(row.start_date).toISOString(),
-      end_date: row.end_date ? new Date(row.end_date).toISOString() : new Date(row.start_date).toISOString(),
-      duration_min: Number(row.duration_min || 0),
-      charge_energy_added: Number(Number(row.charge_energy_added || 0).toFixed(2)),
-      charge_energy_used: Number(Number(row.charge_energy_used || 0).toFixed(2)),
-      start_battery_level: Number(row.start_battery_level || 0),
-      end_battery_level: Number(row.end_battery_level || 0),
-      start_ideal_range_km: Number(row.start_ideal_range_km || 0),
-      end_ideal_range_km: Number(row.end_ideal_range_km || 0),
-      cost: Number(Number(row.cost || 0).toFixed(2)),
-      address: '家用 7kW 交流充电桩 (家)',
-      fast_charger_brand: 'Home AC',
-      charger_type: '7kW 交流慢充 (谷电)',
-    }));
+    return await queryCharges(pool, carId ?? null, null, limit, offset);
   } catch (err) {
     console.error('fetchCharges error:', err);
     return [];
   }
 }
 
-/**
- * ⚡ 获取单次充电详情
- */
 export async function fetchChargeDetail(chargeId: number): Promise<ChargeDetail | null> {
-  if (isDemo()) {
-    const summary = MOCK_CHARGES.find((c) => c.id === chargeId) || MOCK_CHARGES[0];
-    const pts = Array.from({ length: 15 }, (_, i) => ({
-      date: new Date(new Date(summary.start_date).getTime() + i * 15 * 60 * 1000).toISOString(),
-      battery_level: Math.round(summary.start_battery_level + (i / 14) * (summary.end_battery_level - summary.start_battery_level)),
-      charge_energy_added: Number(((i / 14) * summary.charge_energy_added).toFixed(2)),
-      charger_power: 7.0,
-      charger_voltage: 220,
-      charger_actual_current: 32,
-      outside_temp: 24.5,
-    }));
-    return { ...summary, points: pts };
-  }
-
   const pool = getDbPool();
   if (!pool) return null;
 
   try {
-    const list = await fetchCharges(undefined, 100, 0);
-    const summary = list.find((c) => c.id === chargeId);
+    const [summary] = await queryCharges(pool, null, chargeId, 1, 0);
     if (!summary) return null;
 
     const pointsRes = await pool.query(
       `SELECT date, battery_level, charge_energy_added, charger_power, charger_voltage, charger_actual_current, outside_temp
-       FROM charges
-       WHERE charging_process_id = $1
-       ORDER BY date ASC`,
+       FROM charges WHERE charging_process_id = $1 ORDER BY date ASC`,
       [chargeId]
     );
 
     return {
       ...summary,
       points: pointsRes.rows.map((p) => ({
-        date: new Date(p.date).toISOString(),
-        battery_level: Number(p.battery_level || 0),
-        charge_energy_added: Number(p.charge_energy_added || 0),
-        charger_power: Number(p.charger_power || 7.0),
-        charger_voltage: Number(p.charger_voltage || 220),
-        charger_actual_current: Number(p.charger_actual_current || 32),
-        outside_temp: p.outside_temp != null ? Number(p.outside_temp) : null,
+        date: iso(p.date) as string,
+        battery_level: num(p.battery_level),
+        charge_energy_added: num(p.charge_energy_added),
+        charger_power: num(p.charger_power),
+        charger_voltage: num(p.charger_voltage),
+        charger_actual_current: num(p.charger_actual_current),
+        outside_temp: num(p.outside_temp),
       })),
     };
   } catch (err) {
@@ -859,211 +745,271 @@ export async function fetchChargeDetail(chargeId: number): Promise<ChargeDetail 
   }
 }
 
+// ---------------------------------------------------------------------------
+// 统计
+// ---------------------------------------------------------------------------
+
+const EMPTY_ENERGY_BREAKDOWN: EnergyBreakdown = {
+  total_energy_added_kwh: null,
+  grid_energy_used_kwh: null,
+  driving_energy_kwh: null,
+  parking_drain_kwh: null,
+  charging_loss_kwh: null,
+  driving_percent: null,
+  parking_percent: null,
+  charging_efficiency_percent: null,
+  online_hours: null,
+  asleep_hours: null,
+  offline_hours: null,
+  avg_parking_drain_kwh_per_hour: null,
+};
+
 /**
- * ⚡ 电量去向深度剖析
+ * 电量去向：只统计 TeslaMate 有记录的部分
  */
 export async function fetchEnergyBreakdown(carId?: number): Promise<EnergyBreakdown> {
   const pool = getDbPool();
-  if (!pool) {
-    return {
-      total_energy_added_kwh: 98.0,
-      grid_energy_used_kwh: 107.9,
-      driving_energy_kwh: 55.2,
-      parking_drain_kwh: 8.2,
-      charging_loss_kwh: 9.9,
-      remaining_in_battery_kwh: 46.2,
-      driving_percent: 87.1,
-      parking_percent: 12.9,
-      charging_efficiency_percent: 90.8,
-      online_hours: 118.8,
-      sleep_hours: 93.9,
-    };
-  }
+  if (!pool) return EMPTY_ENERGY_BREAKDOWN;
 
   try {
-    const q = `
-      SELECT 
-        COALESCE(SUM(cp.charge_energy_added), 0) as total_added,
-        COALESCE(SUM(cp.charge_energy_used), 0) as grid_used,
-        (SELECT COALESCE(SUM(CASE WHEN (d.start_ideal_range_km - d.end_ideal_range_km) > 0 THEN (d.start_ideal_range_km - d.end_ideal_range_km) * 0.155 ELSE 0 END), 0) FROM drives d WHERE ($1::int IS NULL OR d.car_id = $1)) as driving_kwh,
-        (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'online'), 0) FROM states WHERE ($1::int IS NULL OR car_id = $1)) as online_hours,
-        (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state IN ('asleep', 'offline')), 0) FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sleep_hours,
-        (SELECT (battery_level * 0.60)::numeric FROM positions WHERE ($1::int IS NULL OR car_id = $1) ORDER BY date DESC LIMIT 1) as current_battery_kwh
-      FROM charging_processes cp
-      WHERE ($1::int IS NULL OR cp.car_id = $1);
-    `;
+    const basis = await getRangeBasis(pool);
+    const res = await pool.query(
+      `
+      WITH ${parkingCte(basis)}
+      SELECT
+        (SELECT SUM(charge_energy_added) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) AS total_added,
+        -- 充电效率只用"充入量"和"电网用量"都有记录的充电来算
+        (SELECT SUM(charge_energy_added) FROM charging_processes
+          WHERE ($1::int IS NULL OR car_id = $1) AND charge_energy_used > 0 AND charge_energy_added > 0) AS paired_added,
+        (SELECT SUM(charge_energy_used) FROM charging_processes
+          WHERE ($1::int IS NULL OR car_id = $1) AND charge_energy_used > 0 AND charge_energy_added > 0) AS paired_used,
+        (SELECT SUM((d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency)
+           FROM drives d JOIN cars c ON c.id = d.car_id
+          WHERE d.end_date IS NOT NULL AND ($1::int IS NULL OR d.car_id = $1)) AS driving_kwh,
+        (SELECT SUM((pf.start_range_km - pf.end_range_km) * pf.efficiency) FROM parking_full pf
+          WHERE NOT pf.has_charge AND pf.duration_sec >= $2 AND ($1::int IS NULL OR pf.car_id = $1)) AS parking_kwh,
+        (SELECT SUM(pf.duration_sec) / 3600.0 FROM parking_full pf
+          WHERE NOT pf.has_charge AND pf.duration_sec >= $2 AND pf.start_range_km IS NOT NULL AND pf.end_range_km IS NOT NULL
+            AND pf.efficiency IS NOT NULL AND ($1::int IS NULL OR pf.car_id = $1)) AS parking_hours,
+        (SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW() AT TIME ZONE 'UTC') - start_date))) / 3600.0
+           FROM states WHERE state = 'online' AND ($1::int IS NULL OR car_id = $1)) AS online_hours,
+        (SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW() AT TIME ZONE 'UTC') - start_date))) / 3600.0
+           FROM states WHERE state = 'asleep' AND ($1::int IS NULL OR car_id = $1)) AS asleep_hours,
+        (SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW() AT TIME ZONE 'UTC') - start_date))) / 3600.0
+           FROM states WHERE state = 'offline' AND ($1::int IS NULL OR car_id = $1)) AS offline_hours
+      `,
+      [carId ?? null, MIN_PARKING_SECONDS]
+    );
 
-    const res = await pool.query(q, [carId || null]);
-    const row = res.rows[0];
-
-    const totalAdded = Number(row.total_added || 98.0);
-    const gridUsed = Number(row.grid_used || totalAdded * 1.1);
-    const drivingKwh = Number(row.driving_kwh || 55.2);
-    const currentKwh = Number(row.current_battery_kwh || 46.2);
-    const chargingLoss = Math.max(0, Number((gridUsed - totalAdded).toFixed(1)));
-    
-    const rawParkingDrain = totalAdded - drivingKwh - (currentKwh - 20);
-    const parkingDrain = Number(Math.max(2.0, Math.min(15.0, rawParkingDrain)).toFixed(1));
-
-    const totalConsumed = drivingKwh + parkingDrain;
-    const drivingPct = Number(((drivingKwh / totalConsumed) * 100).toFixed(1));
-    const parkingPct = Number(((parkingDrain / totalConsumed) * 100).toFixed(1));
-    const effPct = gridUsed > 0 ? Number(((totalAdded / gridUsed) * 100).toFixed(1)) : 91.0;
+    const row = res.rows[0] ?? {};
+    const totalAdded = num(row.total_added);
+    const pairedAdded = num(row.paired_added);
+    const pairedUsed = num(row.paired_used);
+    const drivingKwh = num(row.driving_kwh);
+    const parkingKwh = num(row.parking_kwh);
+    const parkingHours = num(row.parking_hours);
+    const consumed = drivingKwh != null && parkingKwh != null ? drivingKwh + parkingKwh : null;
 
     return {
-      total_energy_added_kwh: Number(totalAdded.toFixed(1)),
-      grid_energy_used_kwh: Number(gridUsed.toFixed(1)),
-      driving_energy_kwh: Number(drivingKwh.toFixed(1)),
-      parking_drain_kwh: parkingDrain,
-      charging_loss_kwh: chargingLoss,
-      remaining_in_battery_kwh: Number(currentKwh.toFixed(1)),
-      driving_percent: drivingPct,
-      parking_percent: parkingPct,
-      charging_efficiency_percent: effPct,
-      online_hours: Number(Number(row.online_hours || 118).toFixed(1)),
-      sleep_hours: Number(Number(row.sleep_hours || 94).toFixed(1)),
+      total_energy_added_kwh: round(totalAdded, 1),
+      grid_energy_used_kwh: round(pairedUsed, 1),
+      driving_energy_kwh: round(drivingKwh, 1),
+      parking_drain_kwh: round(parkingKwh, 1),
+      charging_loss_kwh: pairedUsed != null && pairedAdded != null ? round(pairedUsed - pairedAdded, 1) : null,
+      driving_percent: consumed != null && consumed > 0 ? round(((drivingKwh as number) / consumed) * 100, 1) : null,
+      parking_percent: consumed != null && consumed > 0 ? round(((parkingKwh as number) / consumed) * 100, 1) : null,
+      charging_efficiency_percent:
+        pairedUsed != null && pairedAdded != null && pairedUsed > 0 ? round((pairedAdded / pairedUsed) * 100, 1) : null,
+      online_hours: round(num(row.online_hours), 1),
+      asleep_hours: round(num(row.asleep_hours), 1),
+      offline_hours: round(num(row.offline_hours), 1),
+      avg_parking_drain_kwh_per_hour:
+        parkingKwh != null && parkingHours != null && parkingHours > 0 ? round(parkingKwh / parkingHours, 3) : null,
     };
   } catch (err) {
     console.error('fetchEnergyBreakdown error:', err);
-    return {
-      total_energy_added_kwh: 98.0,
-      grid_energy_used_kwh: 107.9,
-      driving_energy_kwh: 55.2,
-      parking_drain_kwh: 8.2,
-      charging_loss_kwh: 9.9,
-      remaining_in_battery_kwh: 46.2,
-      driving_percent: 87.1,
-      parking_percent: 12.9,
-      charging_efficiency_percent: 90.8,
-      online_hours: 118.8,
-      sleep_hours: 93.9,
-    };
+    return EMPTY_ENERGY_BREAKDOWN;
   }
 }
 
+const EMPTY_BATTERY_HEALTH: BatteryHealthInfo = {
+  current_capacity_kwh: null,
+  max_observed_capacity_kwh: null,
+  estimated_full_range_km: null,
+  original_full_range_km: null,
+  health_percent: null,
+  degradation_percent: null,
+  baseline: null,
+  slow_charge_count: null,
+  fast_charge_count: null,
+  total_energy_added_kwh: null,
+  cycle_count: null,
+  is_lfp: null,
+  sample_count: 0,
+};
+
 /**
- * 🔋 1. 电池健康与衰减模型
+ * 电池健康：容量由充电记录推导 (充入电量 ÷ SoC 变化量)，只用充入量足够大的充电
  */
 export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthInfo> {
-  if (isDemo()) return MOCK_BATTERY_HEALTH;
   const pool = getDbPool();
   if (!pool) return EMPTY_BATTERY_HEALTH;
 
   try {
-    const q = `
-      SELECT 
-        (SELECT ROUND(AVG((ideal_battery_range_km / (battery_level / 100.0)))::numeric, 1) 
-         FROM positions 
-         WHERE battery_level >= 75 AND ideal_battery_range_km > 0 AND ($1::int IS NULL OR car_id = $1)) as full_range,
-        (SELECT COUNT(*) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as slow_charges,
-        (SELECT SUM(charge_energy_added) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_added
-      FROM cars WHERE ($1::int IS NULL OR id = $1) LIMIT 1;
-    `;
+    const id = carId ?? (await getDefaultCarId(pool));
+    if (id == null) return EMPTY_BATTERY_HEALTH;
+    const basis = await getRangeBasis(pool);
 
-    const res = await pool.query(q, [carId || null]);
-    const row = res.rows[0];
+    const [samplesRes, totalsRes] = await Promise.all([
+      pool.query(
+        `
+        SELECT cp.charge_energy_added / (cp.end_battery_level - cp.start_battery_level) * 100 AS capacity_kwh,
+               cp.end_${basis}_range_km / NULLIF(cp.end_battery_level, 0) * 100 AS full_range_km
+        FROM charging_processes cp
+        WHERE cp.car_id = $1 AND cp.end_date IS NOT NULL
+          AND cp.charge_energy_added >= $2
+          AND cp.end_battery_level - cp.start_battery_level >= $3
+        ORDER BY cp.start_date ASC
+        `,
+        [id, BATTERY_HEALTH_MIN_ENERGY_ADDED_KWH, BATTERY_HEALTH_MIN_SOC_DELTA]
+      ),
+      pool.query(
+        `
+        SELECT
+          (SELECT SUM(charge_energy_added) FROM charging_processes WHERE car_id = $1) AS total_added,
+          (SELECT COUNT(*) FROM charging_processes cp WHERE cp.car_id = $1 AND cp.end_date IS NOT NULL
+             AND EXISTS (SELECT 1 FROM charges c WHERE c.charging_process_id = cp.id AND c.fast_charger_present)) AS fast_count,
+          (SELECT COUNT(*) FROM charging_processes cp WHERE cp.car_id = $1 AND cp.end_date IS NOT NULL) AS total_count,
+          (SELECT cs.lfp_battery FROM cars c JOIN car_settings cs ON cs.id = c.settings_id WHERE c.id = $1) AS is_lfp
+        `,
+        [id]
+      ),
+    ]);
 
-    const estimatedFull = Number(row?.full_range || 432.5);
-    const originalFull = 433.0;
-    const degPct = Number(Math.max(0, ((originalFull - estimatedFull) / originalFull) * 100).toFixed(1));
-    const healthPct = Number((100 - degPct).toFixed(1));
-    const totalAdded = Number(row?.total_added || 98.0);
-    const cycleCount = Number((totalAdded / 60.0).toFixed(1));
+    const capacities = samplesRes.rows.map((r) => num(r.capacity_kwh)).filter((v): v is number => v != null && v > 0);
+    const fullRanges = samplesRes.rows.map((r) => num(r.full_range_km)).filter((v): v is number => v != null && v > 0);
+
+    const currentCapacity = median(capacities.slice(-BATTERY_HEALTH_RECENT_SAMPLES));
+    // 滚动中位数的最大值，避免单次异常充电被当成"最大容量"
+    let maxCapacity: number | null = null;
+    for (let i = 0; i < capacities.length; i++) {
+      const window = median(capacities.slice(Math.max(0, i - BATTERY_HEALTH_RECENT_SAMPLES + 1), i + 1));
+      if (window != null && (maxCapacity == null || window > maxCapacity)) maxCapacity = window;
+    }
+    const estimatedFullRange = median(fullRanges.slice(-BATTERY_HEALTH_RECENT_SAMPLES));
+
+    const original = getConfig().batteryOriginalRangeKm;
+    let health: number | null = null;
+    let baseline: BatteryHealthInfo['baseline'] = null;
+    if (original != null && estimatedFullRange != null) {
+      health = (estimatedFullRange / original) * 100;
+      baseline = 'configured_original';
+    } else if (currentCapacity != null && maxCapacity != null && capacities.length > BATTERY_HEALTH_RECENT_SAMPLES) {
+      // 没有出厂值时，只能和"有记录以来的最大值"比
+      health = (currentCapacity / maxCapacity) * 100;
+      baseline = 'max_observed';
+    }
+
+    const totals = totalsRes.rows[0] ?? {};
+    const totalAdded = num(totals.total_added);
+    const totalCount = num(totals.total_count);
+    const fastCount = num(totals.fast_count);
 
     return {
-      nominal_full_pack_kwh: 60.0,
-      current_usable_pack_kwh: Number((60.0 * (healthPct / 100)).toFixed(1)),
-      health_percent: healthPct,
-      estimated_full_range_km: estimatedFull,
-      original_full_range_km: originalFull,
-      degradation_percent: degPct,
-      slow_charge_count: Number(row?.slow_charges || 4),
-      fast_charge_count: 0,
-      slow_charge_percent: 100,
-      cycle_count: cycleCount,
+      current_capacity_kwh: round(currentCapacity, 1),
+      max_observed_capacity_kwh: round(maxCapacity, 1),
+      estimated_full_range_km: round(estimatedFullRange, 1),
+      original_full_range_km: original,
+      health_percent: round(health, 1),
+      degradation_percent: health != null ? round(100 - health, 1) : null,
+      baseline,
+      slow_charge_count: totalCount != null && fastCount != null ? totalCount - fastCount : null,
+      fast_charge_count: fastCount,
+      total_energy_added_kwh: round(totalAdded, 1),
+      cycle_count: totalAdded != null && currentCapacity != null ? round(totalAdded / currentCapacity, 1) : null,
+      is_lfp: bool(totals.is_lfp),
+      sample_count: capacities.length,
     };
   } catch (err) {
     console.error('fetchBatteryHealth error:', err);
-    return {
-      nominal_full_pack_kwh: 60.0,
-      current_usable_pack_kwh: 59.9,
-      health_percent: 99.8,
-      estimated_full_range_km: 432.5,
-      original_full_range_km: 433.0,
-      degradation_percent: 0.1,
-      slow_charge_count: 4,
-      fast_charge_count: 0,
-      slow_charge_percent: 100,
-      cycle_count: 1.6,
-    };
+    return EMPTY_BATTERY_HEALTH;
   }
 }
 
+// 油车对比参数；两项都配置了才有意义
+function fuelCostPerKm(): number | null {
+  const { fuelPriceCnyPerLitre, fuelConsumptionLPer100km } = getConfig();
+  if (fuelPriceCnyPerLitre == null || fuelConsumptionLPer100km == null) return null;
+  return (fuelConsumptionLPer100km / 100) * fuelPriceCnyPerLitre;
+}
+
 /**
- * 📅 3. 月度用车账单与报告 (CTE 聚合防语法报错)
+ * 月度报告：按配置时区分月 (库里存的是 UTC)
  */
 export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport[]> {
-  if (isDemo()) return MOCK_MONTHLY_REPORTS;
   const pool = getDbPool();
-  const touJoin = await getTouCostJoin(pool);
   if (!pool) return [];
 
   try {
-    const q = `
+    const basis = await getRangeBasis(pool);
+    const touJoin = await getTouCostJoin(pool);
+    const { electricityPriceCnyPerKwh, timeZone } = getConfig();
+    const res = await pool.query(
+      `
       WITH drive_months AS (
-        SELECT 
-          TO_CHAR(start_date, 'YYYY-MM') as month,
-          COUNT(id) as drive_count,
-          ROUND(SUM(distance)::numeric, 1) as distance_km,
-          ROUND(SUM(CASE WHEN (start_ideal_range_km - end_ideal_range_km) > 0 THEN (start_ideal_range_km - end_ideal_range_km) * 0.155 ELSE 0.1 END)::numeric, 2) as drive_kwh
-        FROM drives
-        WHERE ($1::int IS NULL OR car_id = $1)
-        GROUP BY TO_CHAR(start_date, 'YYYY-MM')
+        SELECT TO_CHAR((d.start_date AT TIME ZONE 'UTC') AT TIME ZONE $2, 'YYYY-MM') AS month,
+               COUNT(*) AS drive_count,
+               SUM(d.distance) AS distance_km,
+               -- 能耗只统计两端续航和车辆效率都有值的行程，并记下对应的里程，保证 Wh/km 的分子分母口径一致
+               SUM((d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency) AS drive_kwh,
+               SUM(d.distance) FILTER (WHERE (d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency IS NOT NULL) AS kwh_distance
+        FROM drives d JOIN cars c ON c.id = d.car_id
+        WHERE d.end_date IS NOT NULL AND ($1::int IS NULL OR d.car_id = $1)
+        GROUP BY 1
       ),
       charge_months AS (
-        SELECT 
-          TO_CHAR(cp.start_date, 'YYYY-MM') as month,
-          COUNT(cp.id) as charge_count,
-          ROUND(COALESCE(SUM(cp.charge_energy_added), 0)::numeric, 1) as charge_energy_kwh,
-          ROUND(COALESCE(SUM(COALESCE(tc.cost_tou, cp.cost, cp.charge_energy_added * 0.311)), 0)::numeric, 2) as charge_cost
+        SELECT TO_CHAR((cp.start_date AT TIME ZONE 'UTC') AT TIME ZONE $2, 'YYYY-MM') AS month,
+               COUNT(*) AS charge_count,
+               SUM(cp.charge_energy_added) AS charge_energy_kwh,
+               SUM(${chargeCostExpr('$3')}) AS charge_cost,
+               COUNT(*) FILTER (WHERE ${chargeCostExpr('$3')} IS NULL) AS unpriced_count
         FROM charging_processes cp
         ${touJoin}
-        WHERE ($1::int IS NULL OR cp.car_id = $1)
-        GROUP BY TO_CHAR(cp.start_date, 'YYYY-MM')
+        WHERE cp.end_date IS NOT NULL AND ($1::int IS NULL OR cp.car_id = $1)
+        GROUP BY 1
       )
-      SELECT 
-        dm.month,
-        dm.drive_count,
-        dm.distance_km,
-        dm.drive_kwh,
-        COALESCE(cm.charge_count, 0) as charge_count,
-        COALESCE(cm.charge_energy_kwh, 0) as charge_energy_kwh,
-        COALESCE(cm.charge_cost, 0) as charge_cost
+      SELECT COALESCE(dm.month, cm.month) AS month,
+             COALESCE(dm.drive_count, 0) AS drive_count, COALESCE(dm.distance_km, 0) AS distance_km,
+             dm.drive_kwh, dm.kwh_distance,
+             COALESCE(cm.charge_count, 0) AS charge_count, COALESCE(cm.charge_energy_kwh, 0) AS charge_energy_kwh,
+             cm.charge_cost, COALESCE(cm.unpriced_count, 0) AS unpriced_count
       FROM drive_months dm
-      LEFT JOIN charge_months cm ON dm.month = cm.month
-      ORDER BY dm.month DESC;
-    `;
+      FULL OUTER JOIN charge_months cm ON cm.month = dm.month
+      ORDER BY 1 DESC
+      `,
+      [carId ?? null, timeZone, electricityPriceCnyPerKwh]
+    );
 
-    const res = await pool.query(q, [carId || null]);
-    return res.rows.map((row) => {
-      const dist = Number(row.distance_km || 0);
-      const kwh = Number(row.drive_kwh || 0);
-      const avgWh = dist > 0 ? Math.round((kwh * 1000) / dist) : 143;
-      const chargeCost = Number(row.charge_cost || 0);
-      const fuelCost = Math.round(dist * 0.64);
-      const savedCost = Math.max(0, Math.round(fuelCost - chargeCost));
-
+    const perKm = fuelCostPerKm();
+    return res.rows.map((row): MonthlyReport => {
+      const distance = num(row.distance_km) ?? 0;
+      const driveKwh = num(row.drive_kwh);
+      const kwhDistance = num(row.kwh_distance);
+      const chargeCost = num(row.charge_cost);
+      const fuelCost = perKm != null ? distance * perKm : null;
       return {
         month: row.month,
-        drive_count: Number(row.drive_count || 0),
-        distance_km: dist,
-        drive_kwh: kwh,
-        avg_wh_km: avgWh,
-        charge_count: Number(row.charge_count || 0),
-        charge_energy_kwh: Number(row.charge_energy_kwh || 0),
-        charge_cost: chargeCost,
-        fuel_equivalent_cost: fuelCost,
-        saved_cost: savedCost,
+        drive_count: Number(row.drive_count),
+        distance_km: Number(distance.toFixed(1)),
+        drive_kwh: round(driveKwh, 1),
+        avg_wh_km: driveKwh != null && kwhDistance != null && kwhDistance > 0 ? Math.round((driveKwh * 1000) / kwhDistance) : null,
+        charge_count: Number(row.charge_count),
+        charge_energy_kwh: Number((num(row.charge_energy_kwh) ?? 0).toFixed(1)),
+        charge_cost: round(chargeCost, 2),
+        unpriced_charge_count: Number(row.unpriced_count),
+        fuel_equivalent_cost: round(fuelCost, 2),
+        // 可以为负：电费比油费贵的月份如实显示
+        saved_cost: fuelCost != null && chargeCost != null ? round(fuelCost - chargeCost, 2) : null,
       };
     });
   } catch (err) {
@@ -1073,39 +1019,34 @@ export async function fetchMonthlyReports(carId?: number): Promise<MonthlyReport
 }
 
 /**
- * 🌡️ 4. 气温对能耗影响统计
+ * 气温与能耗：按整数气温分组，组内按里程加权
  */
 export async function fetchTemperatureStats(carId?: number): Promise<TemperatureEfficiencyPoint[]> {
-  if (isDemo()) {
-    return [
-      { temp: 15, drive_count: 8, avg_wh_km: 152 },
-      { temp: 20, drive_count: 14, avg_wh_km: 146 },
-      { temp: 25, drive_count: 22, avg_wh_km: 142 },
-      { temp: 30, drive_count: 16, avg_wh_km: 145 },
-      { temp: 35, drive_count: 6, avg_wh_km: 156 },
-    ];
-  }
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const q = `
-      SELECT 
-        ROUND(outside_temp_avg) as temp,
-        COUNT(*) as drive_count,
-        ROUND(AVG(CASE WHEN distance >= 0.5 AND (start_ideal_range_km - end_ideal_range_km) > 0 THEN ((start_ideal_range_km - end_ideal_range_km) * 155) / distance ELSE 148 END)::numeric, 0) as avg_wh_km
-      FROM drives
-      WHERE outside_temp_avg IS NOT NULL AND ($1::int IS NULL OR car_id = $1)
-      GROUP BY ROUND(outside_temp_avg)
-      ORDER BY temp ASC;
-    `;
-
-    const res = await pool.query(q, [carId || null]);
-    return res.rows.map((r) => ({
-      temp: Number(r.temp),
-      drive_count: Number(r.drive_count),
-      avg_wh_km: Number(r.avg_wh_km),
-    }));
+    const basis = await getRangeBasis(pool);
+    const res = await pool.query(
+      `
+      SELECT ROUND(d.outside_temp_avg)::int AS temp,
+             COUNT(*) AS drive_count,
+             SUM((d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency) * 1000 / SUM(d.distance) AS avg_wh_km
+      FROM drives d JOIN cars c ON c.id = d.car_id
+      WHERE d.end_date IS NOT NULL
+        AND ($1::int IS NULL OR d.car_id = $1)
+        AND d.outside_temp_avg IS NOT NULL
+        AND d.distance >= $2
+        AND (d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency > 0
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [carId ?? null, MIN_DISTANCE_FOR_EFFICIENCY_KM]
+    );
+    return res.rows
+      .map((row) => ({ temp: Number(row.temp), drive_count: Number(row.drive_count), avg_wh_km: num(row.avg_wh_km) }))
+      .filter((p): p is TemperatureEfficiencyPoint => p.avg_wh_km != null)
+      .map((p) => ({ ...p, avg_wh_km: Math.round(p.avg_wh_km) }));
   } catch (err) {
     console.error('fetchTemperatureStats error:', err);
     return [];
@@ -1113,108 +1054,149 @@ export async function fetchTemperatureStats(carId?: number): Promise<Temperature
 }
 
 /**
- * 🗺️ 2. 常用地点驻留统计
+ * 常去地点：对全部停车记录按地点聚合
  */
-export async function fetchVisitedLocations(carId?: number): Promise<VisitedLocation[]> {
-  if (isDemo()) {
-    return [
-      { name: '大雁塔北广场停车区', visit_count: 36, total_parking_hours: 240.5, is_home: false },
-      { name: '西安钟楼开元商城车库', visit_count: 24, total_parking_hours: 156.0, is_home: false },
-      { name: '曲江金地广场 Tesla V3 超充站', visit_count: 12, total_parking_hours: 8.5, is_home: false },
-      { name: '西安北站地下车库 P2 停车区', visit_count: 8, total_parking_hours: 28.5, is_home: false },
-    ];
-  }
+export async function fetchVisitedLocations(carId?: number, limit = 20): Promise<VisitedLocation[]> {
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    const list = await fetchParkings(carId, 100, 0);
-    const map = new Map<string, { count: number; hours: number; is_home: boolean }>();
+    const basis = await getRangeBasis(pool);
+    const res = await pool.query(
+      `
+      WITH ${parkingCte(basis)}
+      SELECT COALESCE(g.name, ${addressExpr('a')}) AS name,
+             BOOL_OR(g.name IS NOT NULL) AS is_geofence,
+             MAX(g.name) AS geofence_name,
+             COUNT(*) AS visit_count,
+             SUM(pf.duration_sec) / 3600.0 AS total_hours,
+             AVG(pf.latitude) AS latitude, AVG(pf.longitude) AS longitude
+      FROM parking_full pf
+      LEFT JOIN geofences g ON g.id = pf.geofence_id
+      LEFT JOIN addresses a ON a.id = pf.address_id
+      WHERE pf.duration_sec >= $2 AND ($1::int IS NULL OR pf.car_id = $1)
+      GROUP BY 1
+      HAVING COALESCE(g.name, ${addressExpr('a')}) IS NOT NULL
+      ORDER BY COUNT(*) DESC, SUM(pf.duration_sec) DESC
+      LIMIT $3
+      `,
+      [carId ?? null, MIN_PARKING_SECONDS, limit]
+    );
 
-    for (const p of list) {
-      const loc = p.address || '其他停车点';
-      const existing = map.get(loc) || { count: 0, hours: 0, is_home: p.is_home };
-      existing.count += 1;
-      existing.hours += p.duration_min / 60.0;
-      map.set(loc, existing);
-    }
-
-    return Array.from(map.entries()).map(([name, data]) => ({
-      name,
-      visit_count: data.count,
-      total_parking_hours: Number(data.hours.toFixed(1)),
-      is_home: data.is_home,
-    }));
+    const homeName = getConfig().homeGeofenceName;
+    return res.rows.map((row): VisitedLocation => {
+      const lat = num(row.latitude);
+      const lng = num(row.longitude);
+      return {
+        name: resolveAddress(lat, lng, row.geofence_name, row.name) ?? row.name,
+        visit_count: Number(row.visit_count),
+        total_parking_hours: round(num(row.total_hours), 1),
+        is_home: homeName == null ? null : row.geofence_name === homeName,
+        latitude: lat,
+        longitude: lng,
+      };
+    });
   } catch (err) {
     console.error('fetchVisitedLocations error:', err);
     return [];
   }
 }
 
+const EMPTY_LIFETIME_STATS: LifetimeStats = {
+  total_drives: 0,
+  raw_total_drives: 0,
+  total_distance_km: null,
+  logged_distance_km: null,
+  first_logged_odometer: null,
+  first_logged_date: null,
+  total_drive_duration_hours: null,
+  total_energy_kwh: null,
+  avg_efficiency_wh_km: null,
+  total_charges: 0,
+  total_charge_energy_added: null,
+  total_charge_cost: null,
+  unpriced_charge_count: 0,
+  asleep_duration_hours: null,
+};
+
 /**
- * 4. 获取生命周期核心统计
+ * 全生命周期统计：全部在 SQL 里聚合，不受列表分页影响
  */
 export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats> {
-  if (isDemo()) return MOCK_LIFETIME_STATS;
   const pool = getDbPool();
-  const touJoin = await getTouCostJoin(pool);
   if (!pool) return EMPTY_LIFETIME_STATS;
 
   try {
-    const statsQuery = `
-      SELECT 
-        (SELECT COUNT(*) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as raw_total_drives,
-        (SELECT ROUND(COALESCE(MAX(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as total_distance_km,
-        (SELECT ROUND(COALESCE(MIN(odometer), 0)::numeric, 1) FROM positions WHERE ($1::int IS NULL OR car_id = $1)) as first_logged_odometer,
-        (SELECT ROUND(COALESCE(SUM(distance), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as logged_drive_km,
-        (SELECT ROUND((COALESCE(SUM(duration_min), 0) / 60.0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_drive_duration_hours,
-        (SELECT ROUND(COALESCE(SUM(CASE WHEN (start_ideal_range_km - end_ideal_range_km) > 0 THEN (start_ideal_range_km - end_ideal_range_km) * 0.138 ELSE 0.05 END), 0)::numeric, 1) FROM drives WHERE ($1::int IS NULL OR car_id = $1)) as total_energy_kwh,
-        (SELECT COUNT(*) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charges,
-        (SELECT ROUND(COALESCE(SUM(charge_energy_added), 0)::numeric, 1) FROM charging_processes WHERE ($1::int IS NULL OR car_id = $1)) as total_charge_energy_added,
-        (SELECT ROUND(COALESCE(SUM(COALESCE(tc.cost_tou, cp.cost, cp.charge_energy_added * 0.311)), 0)::numeric, 2) 
-         FROM charging_processes cp 
-         ${touJoin}
-         WHERE ($1::int IS NULL OR cp.car_id = $1)) as total_charge_cost,
-        (SELECT ROUND(COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'online'), 0)::numeric, 1) 
-         FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sentry_hours,
-        (SELECT ROUND(COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW()) - start_date)) / 3600) FILTER (WHERE state = 'asleep'), 0)::numeric, 1) 
-         FROM states WHERE ($1::int IS NULL OR car_id = $1)) as sleep_hours;
-    `;
+    const basis = await getRangeBasis(pool);
+    const touJoin = await getTouCostJoin(pool);
+    const price = getConfig().electricityPriceCnyPerKwh;
+    const res = await pool.query(
+      `
+      WITH drive_flags AS (
+        -- 与 mergeConsecutiveDrives 相同的合并规则，用来数"连贯行程"的段数
+        SELECT d.*,
+          (LAG(d.end_date) OVER w IS NOT NULL
+            AND EXTRACT(EPOCH FROM (d.start_date - LAG(d.end_date) OVER w)) / 60 BETWEEN $3 AND $4
+            AND ${placeKeyExpr('d.start_geofence_id', 'd.start_address_id')}
+              = LAG(${placeKeyExpr('d.end_geofence_id', 'd.end_address_id')}) OVER w) AS merges_with_previous
+        FROM drives d
+        WHERE d.end_date IS NOT NULL AND ($1::int IS NULL OR d.car_id = $1)
+        WINDOW w AS (PARTITION BY d.car_id ORDER BY d.start_date)
+      ),
+      drive_totals AS (
+        SELECT COUNT(*) AS raw_count,
+               COUNT(*) FILTER (WHERE merges_with_previous IS NOT TRUE) AS merged_count,
+               SUM(df.distance) AS logged_km,
+               SUM(df.duration_min) / 60.0 AS drive_hours,
+               SUM((df.start_${basis}_range_km - df.end_${basis}_range_km) * c.efficiency) AS drive_kwh,
+               SUM(df.distance) FILTER (WHERE (df.start_${basis}_range_km - df.end_${basis}_range_km) * c.efficiency IS NOT NULL) AS kwh_distance
+        FROM drive_flags df JOIN cars c ON c.id = df.car_id
+      ),
+      charge_totals AS (
+        SELECT COUNT(*) AS charge_count,
+               SUM(cp.charge_energy_added) AS energy_added,
+               SUM(${chargeCostExpr('$2')}) AS charge_cost,
+               COUNT(*) FILTER (WHERE ${chargeCostExpr('$2')} IS NULL) AS unpriced_count
+        FROM charging_processes cp
+        ${touJoin}
+        WHERE cp.end_date IS NOT NULL AND ($1::int IS NULL OR cp.car_id = $1)
+      ),
+      odometer AS (
+        -- 每辆车取最新/最早的位置点 (走 date 索引，不扫全表)
+        SELECT SUM(latest.odometer) AS current_odometer,
+               SUM(earliest.odometer) AS first_odometer,
+               MIN(earliest.date) AS first_date
+        FROM cars c
+        LEFT JOIN LATERAL (SELECT odometer FROM positions p WHERE p.car_id = c.id AND p.odometer IS NOT NULL ORDER BY p.date DESC LIMIT 1) latest ON true
+        LEFT JOIN LATERAL (SELECT odometer, date FROM positions p WHERE p.car_id = c.id AND p.odometer IS NOT NULL ORDER BY p.date ASC LIMIT 1) earliest ON true
+        WHERE ($1::int IS NULL OR c.id = $1)
+      )
+      SELECT dt.*, ct.*, o.*,
+        (SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(end_date, NOW() AT TIME ZONE 'UTC') - start_date))) / 3600.0
+           FROM states WHERE state = 'asleep' AND ($1::int IS NULL OR car_id = $1)) AS asleep_hours
+      FROM drive_totals dt, charge_totals ct, odometer o
+      `,
+      [carId ?? null, price, MERGE_GAP_SLACK_MINUTES, MERGE_MAX_GAP_MINUTES]
+    );
 
-    const [res, mergedDrives] = await Promise.all([
-      pool.query(statsQuery, [carId || null]),
-      fetchDrives(carId, 500, 0, true),
-    ]);
-
-    const row = res.rows[0];
-
-    const dist = Number(row.total_distance_km || 0);
-    const loggedDist = Number(row.logged_drive_km || dist);
-    const firstOdo = Number(row.first_logged_odometer || 0);
-    const unloggedKm = firstOdo > 0 ? Number(firstOdo.toFixed(1)) : 0;
-    const chargeEnergy = Number(row.total_charge_energy_added || 0);
-    const totalCost = Number(row.total_charge_cost || 0);
-    const driveEnergy = Number(row.total_energy_kwh || 0);
-    const avgEff = loggedDist > 0 && driveEnergy > 0 ? Math.round((driveEnergy * 1000) / loggedDist) : 122;
-
-    const mergedCount = mergedDrives.length;
-    const rawCount = Number(row.raw_total_drives || mergedCount);
-
+    const row = res.rows[0] ?? {};
+    const driveKwh = num(row.drive_kwh);
+    const kwhDistance = num(row.kwh_distance);
     return {
-      total_drives: mergedCount > 0 ? mergedCount : rawCount,
-      raw_total_drives: rawCount,
-      total_distance_km: dist,
-      logged_distance_km: loggedDist,
-      first_logged_odometer: firstOdo,
-      unlogged_distance_km: unloggedKm,
-      total_drive_duration_hours: Number(row.total_drive_duration_hours || 0),
-      total_energy_kwh: driveEnergy,
-      avg_efficiency_wh_km: avgEff,
-      total_charges: Number(row.total_charges || 0),
-      total_charge_energy_added: chargeEnergy,
-      total_charge_cost: totalCost,
-      sentry_duration_hours: Number(row.sentry_hours || 0),
-      sleep_duration_hours: Number(row.sleep_hours || 0),
+      total_drives: Number(row.merged_count ?? 0),
+      raw_total_drives: Number(row.raw_count ?? 0),
+      total_distance_km: round(num(row.current_odometer), 1),
+      logged_distance_km: round(num(row.logged_km), 1),
+      first_logged_odometer: round(num(row.first_odometer), 1),
+      first_logged_date: iso(row.first_date),
+      total_drive_duration_hours: round(num(row.drive_hours), 1),
+      total_energy_kwh: round(driveKwh, 1),
+      avg_efficiency_wh_km: driveKwh != null && kwhDistance != null && kwhDistance > 0 ? Math.round((driveKwh * 1000) / kwhDistance) : null,
+      total_charges: Number(row.charge_count ?? 0),
+      total_charge_energy_added: round(num(row.energy_added), 1),
+      total_charge_cost: round(num(row.charge_cost), 2),
+      unpriced_charge_count: Number(row.unpriced_count ?? 0),
+      asleep_duration_hours: round(num(row.asleep_hours), 1),
     };
   } catch (err) {
     console.error('fetchLifetimeStats error:', err);
@@ -1223,268 +1205,210 @@ export async function fetchLifetimeStats(carId?: number): Promise<LifetimeStats>
 }
 
 /**
- * 🏆 5. 获取多时间周期（月/半年/全年/所有时间）驾驶生涯极值榜单
- */
-export async function fetchDrivingRecords(carId?: number): Promise<DrivingRecordsByPeriod> {
-  if (isDemo()) return MOCK_DRIVING_RECORDS;
-  const pool = getDbPool();
-  if (!pool) return EMPTY_DRIVING_RECORDS;
-
-  try {
-    // 1. 获取所有合并后的完整行程
-    const allMergedDrives = await fetchDrives(carId, 1000, 0, true);
-    if (!allMergedDrives || allMergedDrives.length === 0) return EMPTY_DRIVING_RECORDS;
-
-    const now = Date.now();
-    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
-    const sixMonthsAgo = now - 180 * 24 * 60 * 60 * 1000;
-    const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
-
-    const computeForPeriod = (period: RecordPeriod, filterFn: (d: DriveSummary) => boolean): DrivingRecords => {
-      let filtered = allMergedDrives.filter(filterFn);
-      if (filtered.length === 0) filtered = allMergedDrives; // 兜底
-
-      // 最高时速
-      const maxSpeedDrive = [...filtered].sort((a, b) => (b.speed_max || 0) - (a.speed_max || 0))[0] || filtered[0];
-      // 最远里程
-      const longestDistDrive = [...filtered].sort((a, b) => (b.distance || 0) - (a.distance || 0))[0] || filtered[0];
-      // 最长驾驶时间
-      const longestDurDrive = [...filtered].sort((a, b) => (b.duration_min || 0) - (a.duration_min || 0))[0] || filtered[0];
-      // 最佳能耗 (距离 >= 3km)
-      const validEffDrives = filtered.filter((d) => (d.distance || 0) >= 3.0);
-      const bestEffDrive = validEffDrives.length > 0
-        ? [...validEffDrives].sort((a, b) => (a.efficiency_wh_km || 999) - (b.efficiency_wh_km || 999))[0]
-        : filtered[0];
-      // 最大功率与动能回收
-      const maxPowerDrive = [...filtered].sort((a, b) => (b.power_max || 0) - (a.power_max || 0))[0] || filtered[0];
-      const minPowerDrive = [...filtered].sort((a, b) => (a.power_min || 0) - (b.power_min || 0))[0] || filtered[0];
-      // 最大爬升
-      const maxAscentDrive = [...filtered].sort((a, b) => (b.ascent || 0) - (a.ascent || 0))[0] || filtered[0];
-      // 极限气温
-      const lowestTempDrive = [...filtered].filter((d) => d.outside_temp_avg != null).sort((a, b) => (a.outside_temp_avg || 0) - (b.outside_temp_avg || 0))[0] || filtered[0];
-      const highestTempDrive = [...filtered].filter((d) => d.outside_temp_avg != null).sort((a, b) => (b.outside_temp_avg || 0) - (a.outside_temp_avg || 0))[0] || filtered[0];
-
-      return {
-        period,
-        max_speed: {
-          value: maxSpeedDrive.speed_max,
-          formatted_value: String(Math.round(maxSpeedDrive.speed_max)),
-          unit: 'km/h',
-          title: period === 'all' ? '生涯最高极速' : '最高极速',
-          sub_text: `${maxSpeedDrive.start_address} ➔ ${maxSpeedDrive.end_address}`,
-          date: maxSpeedDrive.start_date,
-          location: maxSpeedDrive.end_address,
-          drive_id: maxSpeedDrive.id,
-          secondary_value: maxSpeedDrive.power_max > 0 ? `峰值功率 ${maxSpeedDrive.power_max} kW` : undefined,
-        },
-        longest_distance: {
-          value: longestDistDrive.distance,
-          formatted_value: String(longestDistDrive.distance.toFixed(1)),
-          unit: 'km',
-          title: period === 'all' ? '生涯单次最远里程' : '单次最远里程',
-          sub_text: `${longestDistDrive.start_address} ➔ ${longestDistDrive.end_address}`,
-          date: longestDistDrive.start_date,
-          location: longestDistDrive.end_address,
-          drive_id: longestDistDrive.id,
-          secondary_value: `耗电 ${longestDistDrive.consumption_kwh} kWh${longestDistDrive.is_merged ? ' (已合并中途停留)' : ''}`,
-        },
-        longest_duration: {
-          value: longestDurDrive.duration_min,
-          formatted_value: longestDurDrive.duration_min >= 60
-            ? `${Math.floor(longestDurDrive.duration_min / 60)}小时${longestDurDrive.duration_min % 60}分`
-            : `${longestDurDrive.duration_min}分钟`,
-          unit: '',
-          title: period === 'all' ? '生涯最长单次驾驶' : '单次最长驾驶',
-          sub_text: `${longestDurDrive.start_address} ➔ ${longestDurDrive.end_address}`,
-          date: longestDurDrive.start_date,
-          location: longestDurDrive.end_address,
-          drive_id: longestDurDrive.id,
-          secondary_value: `里程 ${longestDurDrive.distance} km`,
-        },
-        best_efficiency: {
-          value: bestEffDrive.efficiency_wh_km,
-          formatted_value: String(Math.round(bestEffDrive.efficiency_wh_km)),
-          unit: 'Wh/km',
-          title: period === 'all' ? '黄金右脚 / 生涯最佳能耗' : '黄金右脚 / 最佳能耗',
-          sub_text: `${bestEffDrive.start_address} ➔ ${bestEffDrive.end_address}`,
-          date: bestEffDrive.start_date,
-          location: bestEffDrive.end_address,
-          drive_id: bestEffDrive.id,
-          secondary_value: `总里程 ${bestEffDrive.distance} km`,
-        },
-        max_power: {
-          value: maxPowerDrive.power_max,
-          formatted_value: String(Math.round(maxPowerDrive.power_max)),
-          unit: 'kW',
-          title: period === 'all' ? '生涯最大放电功率' : '最大瞬时放电功率',
-          sub_text: `${maxPowerDrive.start_address} ➔ ${maxPowerDrive.end_address}`,
-          date: maxPowerDrive.start_date,
-          location: maxPowerDrive.end_address,
-          drive_id: maxPowerDrive.id,
-        },
-        max_regen: {
-          value: minPowerDrive.power_min,
-          formatted_value: String(Math.round(minPowerDrive.power_min)),
-          unit: 'kW',
-          title: period === 'all' ? '生涯最强动能回收' : '最强动能回收',
-          sub_text: `${minPowerDrive.start_address} ➔ ${minPowerDrive.end_address}`,
-          date: minPowerDrive.start_date,
-          location: minPowerDrive.end_address,
-          drive_id: minPowerDrive.id,
-        },
-        max_ascent: {
-          value: maxAscentDrive.ascent || 0,
-          formatted_value: `+${maxAscentDrive.ascent || 0}`,
-          unit: 'm',
-          title: period === 'all' ? '生涯单次最大爬升' : '单次最大海拔爬升',
-          sub_text: `${maxAscentDrive.start_address} ➔ ${maxAscentDrive.end_address}`,
-          date: maxAscentDrive.start_date,
-          location: maxAscentDrive.end_address,
-          drive_id: maxAscentDrive.id,
-        },
-        extreme_temp: {
-          lowest: {
-            value: lowestTempDrive.outside_temp_avg || 20,
-            formatted_value: String(lowestTempDrive.outside_temp_avg?.toFixed(1) || '20.0'),
-            unit: '°C',
-            title: '最低温出行',
-            date: lowestTempDrive.start_date,
-            location: lowestTempDrive.start_address,
-            drive_id: lowestTempDrive.id,
-          },
-          highest: {
-            value: highestTempDrive.outside_temp_avg || 30,
-            formatted_value: String(highestTempDrive.outside_temp_avg?.toFixed(1) || '30.0'),
-            unit: '°C',
-            title: '最高温出行',
-            date: highestTempDrive.start_date,
-            location: highestTempDrive.start_address,
-            drive_id: highestTempDrive.id,
-          },
-        },
-      };
-    };
-
-    return {
-      month: computeForPeriod('month', (d) => new Date(d.start_date).getTime() >= oneMonthAgo),
-      half_year: computeForPeriod('half_year', (d) => new Date(d.start_date).getTime() >= sixMonthsAgo),
-      year: computeForPeriod('year', (d) => new Date(d.start_date).getTime() >= oneYearAgo),
-      all: computeForPeriod('all', () => true),
-    };
-  } catch (err) {
-    console.error('fetchDrivingRecords error:', err);
-    return EMPTY_DRIVING_RECORDS;
-  }
-}
-
-export interface SavingsAnalysis {
-  total_distance_km: number;
-  total_charge_cost: number;
-  fuel_equivalent_cost: number;
-  saved_cost: number;
-  fuel_liters_saved: number;
-  co2_reduced_kg: number;
-}
-
-/**
- * 真实省钱分析
+ * 油车对比：只拿"有记录的里程"对比"有记录的电费"。接入 TeslaMate 之前的里程不参与，否则等于把那部分电费当成 0。
  */
 export async function fetchSavingsAnalysis(carId?: number): Promise<SavingsAnalysis> {
+  const { fuelPriceCnyPerLitre, fuelConsumptionLPer100km } = getConfig();
   const stats = await fetchLifetimeStats(carId);
-  const totalKm = stats.total_distance_km;
-  const fuelCostPerKm = 0.64;
-  const fuelEquivalentCost = totalKm * fuelCostPerKm;
-  const savedCost = Math.max(0, fuelEquivalentCost - stats.total_charge_cost);
-  const fuelLiters = (totalKm / 100) * 8.0;
-  const co2Kg = fuelLiters * 2.31;
+
+  const perKm = fuelCostPerKm();
+  const distance = stats.logged_distance_km;
+  const evCost = stats.total_charge_cost;
+  const fuelCost = perKm != null && distance != null ? distance * perKm : null;
+  const litres = fuelConsumptionLPer100km != null && distance != null ? (distance / 100) * fuelConsumptionLPer100km : null;
 
   return {
-    total_distance_km: Number(totalKm.toFixed(1)),
-    total_charge_cost: Number(stats.total_charge_cost.toFixed(2)),
-    fuel_equivalent_cost: Math.round(fuelEquivalentCost),
-    saved_cost: Math.round(savedCost),
-    fuel_liters_saved: Math.round(fuelLiters),
-    co2_reduced_kg: Math.round(co2Kg),
+    configured: perKm != null,
+    fuel_price_cny_per_litre: fuelPriceCnyPerLitre,
+    fuel_consumption_l_per_100km: fuelConsumptionLPer100km,
+    logged_distance_km: distance,
+    ev_cost: evCost,
+    ev_cost_per_km: evCost != null && distance != null && distance > 0 ? round(evCost / distance, 3) : null,
+    fuel_cost: round(fuelCost, 2),
+    fuel_cost_per_km: round(perKm, 3),
+    saved_cost: fuelCost != null && evCost != null ? round(fuelCost - evCost, 2) : null,
+    fuel_liters_saved: round(litres, 1),
+    co2_reduced_kg: litres != null ? round(litres * CO2_KG_PER_LITRE_PETROL, 0) : null,
+    unpriced_charge_count: stats.unpriced_charge_count,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 极值榜
+// ---------------------------------------------------------------------------
+
+const route = (d: DriveSummary): string | undefined =>
+  d.start_address && d.end_address ? `${d.start_address} ➔ ${d.end_address}` : d.end_address ?? d.start_address ?? undefined;
+
+function recordItem(
+  drive: DriveSummary | undefined,
+  value: number | null | undefined,
+  fields: { title: string; unit: string; format: (v: number) => string; secondary?: (d: DriveSummary) => string | undefined }
+): DrivingRecordItem | null {
+  if (!drive || value == null) return null;
+  return {
+    value,
+    formatted_value: fields.format(value),
+    unit: fields.unit,
+    title: fields.title,
+    sub_text: route(drive),
+    date: drive.start_date,
+    location: drive.end_address,
+    drive_id: drive.id,
+    secondary_value: fields.secondary?.(drive),
+  };
+}
+
+// 取 pick 值最大 (或最小) 的那段行程；没有任何一段有值则返回 undefined
+function pickExtreme(
+  drives: DriveSummary[],
+  pick: (d: DriveSummary) => number | null | undefined,
+  direction: 'max' | 'min'
+): DriveSummary | undefined {
+  let best: DriveSummary | undefined;
+  let bestValue: number | undefined;
+  for (const d of drives) {
+    const v = pick(d);
+    if (v == null) continue;
+    if (bestValue === undefined || (direction === 'max' ? v > bestValue : v < bestValue)) {
+      best = d;
+      bestValue = v;
+    }
+  }
+  return best;
+}
+
+function computeRecords(period: RecordPeriod, drives: DriveSummary[]): DrivingRecords {
+  const all = period === 'all';
+  const efficiencyDrives = drives.filter(
+    (d) => (d.distance ?? 0) >= MIN_DISTANCE_FOR_EFFICIENCY_RECORD_KM && d.efficiency_wh_km != null && d.efficiency_wh_km > 0
+  );
+  const regenDrives = drives.filter((d) => d.power_min != null && d.power_min < 0);
+  const ascentDrives = drives.filter((d) => d.ascent != null && d.ascent > 0);
+
+  const maxSpeed = pickExtreme(drives, (d) => d.speed_max, 'max');
+  const longestDistance = pickExtreme(drives, (d) => d.distance, 'max');
+  const longestDuration = pickExtreme(drives, (d) => d.duration_min, 'max');
+  const bestEfficiency = pickExtreme(efficiencyDrives, (d) => d.efficiency_wh_km, 'min');
+  const maxPower = pickExtreme(drives, (d) => d.power_max, 'max');
+  const maxRegen = pickExtreme(regenDrives, (d) => d.power_min, 'min');
+  const maxAscent = pickExtreme(ascentDrives, (d) => d.ascent, 'max');
+  const lowestTemp = pickExtreme(drives, (d) => d.outside_temp_avg, 'min');
+  const highestTemp = pickExtreme(drives, (d) => d.outside_temp_avg, 'max');
+
+  const hoursMinutes = (min: number) => {
+    const h = Math.floor(min / 60);
+    const m = Math.round(min % 60);
+    return h > 0 ? `${h}小时${m}分` : `${m}分钟`;
+  };
+
+  return {
+    period,
+    drive_count: drives.length,
+    max_speed: recordItem(maxSpeed, maxSpeed?.speed_max, {
+      title: all ? '生涯最高时速' : '最高时速', unit: 'km/h', format: (v) => String(Math.round(v)),
+    }),
+    longest_distance: recordItem(longestDistance, longestDistance?.distance, {
+      title: all ? '生涯单次最远行程' : '单次最远行程', unit: 'km', format: (v) => v.toFixed(1),
+    }),
+    longest_duration: recordItem(longestDuration, longestDuration?.duration_min, {
+      title: all ? '生涯单次最长驾驶' : '单次最长驾驶', unit: '', format: hoursMinutes,
+    }),
+    best_efficiency: recordItem(bestEfficiency, bestEfficiency?.efficiency_wh_km, {
+      title: `最佳能耗 (≥${MIN_DISTANCE_FOR_EFFICIENCY_RECORD_KM} km 行程)`, unit: 'Wh/km', format: (v) => String(Math.round(v)),
+      secondary: (d) => (d.distance != null ? `${d.distance.toFixed(1)} km` : undefined),
+    }),
+    max_power: recordItem(maxPower, maxPower?.power_max, {
+      title: all ? '生涯最大输出功率' : '最大输出功率', unit: 'kW', format: (v) => String(Math.round(v)),
+    }),
+    max_regen: recordItem(maxRegen, maxRegen?.power_min != null ? Math.abs(maxRegen.power_min) : null, {
+      title: all ? '生涯最大动能回收' : '最大动能回收', unit: 'kW', format: (v) => String(Math.round(v)),
+    }),
+    max_ascent: recordItem(maxAscent, maxAscent?.ascent, {
+      title: all ? '生涯单次最大爬升' : '单次最大海拔爬升', unit: 'm', format: (v) => `+${Math.round(v)}`,
+    }),
+    extreme_temp: {
+      lowest: recordItem(lowestTemp, lowestTemp?.outside_temp_avg, { title: '最低温出行', unit: '°C', format: (v) => v.toFixed(1) }),
+      highest: recordItem(highestTemp, highestTemp?.outside_temp_avg, { title: '最高温出行', unit: '°C', format: (v) => v.toFixed(1) }),
+    },
   };
 }
 
 /**
- * 🗺️ 获取全量行车足迹轨迹段 (所有历史行程经纬度点集合，用于绘制全景行车足迹大地图)
+ * 极值榜：基于全部行程 (智能合并后)。某个周期内没有行程，该周期各项就是 null，不会用别的周期顶替。
+ */
+export async function fetchDrivingRecords(carId?: number): Promise<DrivingRecordsByPeriod> {
+  const pool = getDbPool();
+
+  let drives: DriveSummary[] = [];
+  if (pool) {
+    try {
+      drives = mergeConsecutiveDrives(await queryDrives(pool, { carId }));
+    } catch (err) {
+      console.error('fetchDrivingRecords error:', err);
+    }
+  }
+
+  const now = Date.now();
+  const since = (days: number) => drives.filter((d) => new Date(d.start_date).getTime() >= now - days * 24 * 3600 * 1000);
+  return {
+    month: computeRecords('month', since(RECORD_WINDOW_DAYS.month)),
+    half_year: computeRecords('half_year', since(RECORD_WINDOW_DAYS.half_year)),
+    year: computeRecords('year', since(RECORD_WINDOW_DAYS.year)),
+    all: computeRecords('all', drives),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 足迹
+// ---------------------------------------------------------------------------
+
+/**
+ * 足迹轨迹：最近 FOOTPRINT_MAX_DRIVES 段行程，每段抽样约 FOOTPRINT_TARGET_POINTS 个点，转成 GCJ-02 供高德底图使用
  */
 export async function fetchFootprintDrives(carId?: number): Promise<FootprintDrivePath[]> {
-  if (isDemo()) return MOCK_FOOTPRINT_DRIVES;
   const pool = getDbPool();
   if (!pool) return [];
 
   try {
-    // 1. 获取所有合并后的行程（覆盖完整历史）
-    const drives = await fetchDrives(carId, 200, 0, true);
-    const validDrives = drives.filter((d) => (d.distance || 0) >= 0.2);
+    const drives = (await queryDrives(pool, { carId, limit: FOOTPRINT_MAX_DRIVES })).filter(
+      (d) => (d.distance ?? 0) >= MIN_DISTANCE_FOR_FOOTPRINT_KM
+    );
+    if (drives.length === 0) return [];
 
-    if (validDrives.length === 0) return [];
-
-    // 2. 收集所有需要查询的真实底层 drive_id（展开合并行程的子 ID）
-    const allSubDriveIds: number[] = [];
-    validDrives.forEach((d) => {
-      if (d.merged_drive_ids && d.merged_drive_ids.length > 0) {
-        allSubDriveIds.push(...d.merged_drive_ids);
-      } else {
-        allSubDriveIds.push(d.id);
-      }
-    });
-
-    const uniqueDriveIds = Array.from(new Set(allSubDriveIds));
-
-    // 3. 高效抽样提取每个行程的关键轨迹点 (保证拐角平滑与大环线完整)
-    const posRes = await pool.query(
-      `SELECT drive_id, latitude, longitude, date
-       FROM (
-         SELECT 
-           drive_id, 
-           latitude, 
-           longitude,
-           date,
-           ROW_NUMBER() OVER (PARTITION BY drive_id ORDER BY date ASC) as rn,
-           COUNT(*) OVER (PARTITION BY drive_id) as total_pts
-         FROM positions
-         WHERE drive_id = ANY($1::int[]) AND latitude IS NOT NULL AND longitude IS NOT NULL
-       ) sub
-       WHERE rn = 1 OR rn = total_pts OR (rn % GREATEST(1, FLOOR(total_pts / 120.0)::int) = 0)
-       ORDER BY drive_id DESC, date ASC`,
-      [uniqueDriveIds]
+    const res = await pool.query(
+      `
+      SELECT drive_id, latitude, longitude FROM (
+        SELECT drive_id, latitude, longitude, date,
+               ROW_NUMBER() OVER (PARTITION BY drive_id ORDER BY date) AS rn,
+               COUNT(*) OVER (PARTITION BY drive_id) AS total
+        FROM positions
+        WHERE drive_id = ANY($1::int[])
+      ) s
+      WHERE rn = 1 OR rn = total OR rn % GREATEST(1, CEIL(total::numeric / $2)::int) = 0
+      ORDER BY drive_id, date
+      `,
+      [drives.map((d) => d.id), FOOTPRINT_TARGET_POINTS]
     );
 
-    // 4. 将点按底层 drive_id 归类并进行 GCJ-02 坐标纠偏
-    const ptsBySubDrive = new Map<number, [number, number][]>();
-    for (const row of posRes.rows) {
-      const dId = Number(row.drive_id);
-      const list = ptsBySubDrive.get(dId) || [];
+    const byDrive = new Map<number, [number, number][]>();
+    for (const row of res.rows) {
       const [gcjLng, gcjLat] = wgs84ToGcj02(Number(row.longitude), Number(row.latitude));
+      const list = byDrive.get(row.drive_id) ?? [];
       list.push([gcjLat, gcjLng]);
-      ptsBySubDrive.set(dId, list);
+      byDrive.set(row.drive_id, list);
     }
 
-    // 5. 按照合并行程的顺序将各子行程的轨迹点拼接成完整连续大轨迹
-    return validDrives
-      .map((d) => {
-        const subIds = d.merged_drive_ids && d.merged_drive_ids.length > 0 ? d.merged_drive_ids : [d.id];
-        const combinedPoints: [number, number][] = [];
-
-        for (const subId of subIds) {
-          const subPts = ptsBySubDrive.get(subId) || [];
-          combinedPoints.push(...subPts);
-        }
-
-        return {
-          id: d.id,
-          start_date: d.start_date,
-          distance: d.distance,
-          duration_min: d.duration_min,
-          start_address: d.start_address,
-          end_address: d.end_address,
-          points: combinedPoints,
-        };
-      })
+    return drives
+      .map((d): FootprintDrivePath => ({
+        id: d.id,
+        start_date: d.start_date,
+        distance: d.distance,
+        duration_min: d.duration_min,
+        start_address: d.start_address,
+        end_address: d.end_address,
+        points: byDrive.get(d.id) ?? [],
+      }))
       .filter((d) => d.points.length >= 2);
   } catch (err) {
     console.error('fetchFootprintDrives error:', err);
@@ -1492,129 +1416,113 @@ export async function fetchFootprintDrives(carId?: number): Promise<FootprintDri
   }
 }
 
+// ---------------------------------------------------------------------------
+// 里程碑
+// ---------------------------------------------------------------------------
+
+const emptyCarMilestones = (carId: number | null): CarMilestonesData => ({
+  car_id: carId,
+  delivery_date: getConfig().deliveryDate,
+  days_since_delivery: null,
+  current_odometer: null,
+  daily_avg_km: null,
+  recent_daily_avg_km: null,
+  milestones: [],
+});
+
 /**
- * 🎯 7. 获取车辆提车里程碑事件与成就预测 (Milestone Milestones)
+ * 里程碑：提车日来自配置 DELIVERY_DATE。接入 TeslaMate 之前就已超过的里程碑，达成时间未知，不伪造。
  */
-export async function fetchCarMilestones(carId = 1): Promise<CarMilestonesData> {
-  if (isDemo()) return MOCK_CAR_MILESTONES;
+export async function fetchCarMilestones(carId?: number): Promise<CarMilestonesData> {
   const pool = getDbPool();
-  if (!pool) return emptyCarMilestones(carId ?? 0);
+  if (!pool) return emptyCarMilestones(carId ?? null);
 
   try {
-    // 1. 获取提车日期 (先查 car_metadata 表，若无则默认 2026-08-16)
-    let deliveryDateStr = '2026-08-16';
-    try {
-      const metaRes = await pool.query(
-        `SELECT delivery_date FROM car_metadata WHERE car_id = $1 LIMIT 1`,
-        [carId]
-      );
-      if (metaRes.rows.length > 0 && metaRes.rows[0].delivery_date) {
-        const d = metaRes.rows[0].delivery_date;
-        deliveryDateStr = typeof d === 'string' ? d.split('T')[0] : new Date(d).toISOString().split('T')[0];
+    const id = carId ?? (await getDefaultCarId(pool));
+    if (id == null) return emptyCarMilestones(null);
+
+    const { deliveryDate, timeZone } = getConfig();
+    const res = await pool.query(
+      `
+      SELECT
+        (SELECT odometer FROM positions WHERE car_id = $1 AND odometer IS NOT NULL ORDER BY date DESC LIMIT 1) AS current_odometer,
+        (SELECT odometer FROM positions WHERE car_id = $1 AND odometer IS NOT NULL ORDER BY date ASC LIMIT 1) AS first_odometer,
+        (SELECT SUM(distance) FROM drives WHERE car_id = $1 AND end_date IS NOT NULL) AS logged_km,
+        (SELECT EXTRACT(EPOCH FROM (MAX(end_date) - MIN(start_date))) / 86400.0 FROM drives WHERE car_id = $1 AND end_date IS NOT NULL) AS logged_days,
+        -- 提车日按配置时区的当天 0 点起算
+        CASE WHEN $2::date IS NULL THEN NULL
+             ELSE EXTRACT(EPOCH FROM (NOW() - ($2::date::timestamp AT TIME ZONE $3))) / 86400.0 END AS days_since_delivery
+      `,
+      [id, deliveryDate, timeZone]
+    );
+    const row = res.rows[0] ?? {};
+    const odometer = num(row.current_odometer);
+    const firstOdometer = num(row.first_odometer);
+    const loggedKm = num(row.logged_km);
+    const loggedDays = num(row.logged_days);
+    const daysSinceDelivery = num(row.days_since_delivery);
+
+    const dailyAvg = odometer != null && daysSinceDelivery != null && daysSinceDelivery >= 1 ? odometer / daysSinceDelivery : null;
+    // 记录时间太短时，日均没有参考意义
+    const recentDailyAvg =
+      loggedKm != null && loggedDays != null && loggedDays >= MIN_LOGGED_DAYS_FOR_DAILY_AVG ? loggedKm / loggedDays : null;
+    const predictionRate = recentDailyAvg ?? dailyAvg;
+
+    const milestones: CarMilestone[] = [];
+    if (odometer != null) {
+      for (const { target, label } of MILESTONE_TARGETS_KM) {
+        if (odometer >= target) {
+          if (firstOdometer != null && firstOdometer >= target) {
+            milestones.push({ target_km: target, label, is_achieved: true, achieved_before_logging: true });
+            continue;
+          }
+          const hit = await pool.query(
+            `SELECT id, end_date FROM drives WHERE car_id = $1 AND end_km >= $2 AND end_date IS NOT NULL ORDER BY start_date ASC LIMIT 1`,
+            [id, target]
+          );
+          const achievedDate = iso(hit.rows[0]?.end_date);
+          let durationDays: number | null = null;
+          if (achievedDate && deliveryDate) {
+            const deliveryMs = Date.now() - (daysSinceDelivery as number) * 86400000;
+            durationDays = Math.max(0, Math.round((new Date(achievedDate).getTime() - deliveryMs) / 86400000));
+          }
+          milestones.push({
+            target_km: target,
+            label,
+            is_achieved: true,
+            achieved_before_logging: false,
+            achieved_date: achievedDate,
+            achieved_duration_days: durationDays,
+            drive_id: hit.rows[0]?.id ?? null,
+          });
+        } else {
+          const remaining = target - odometer;
+          const daysRemaining = predictionRate != null && predictionRate > 0 ? Math.ceil(remaining / predictionRate) : null;
+          milestones.push({
+            target_km: target,
+            label,
+            is_achieved: false,
+            current_progress_percent: round((odometer / target) * 100, 1),
+            remaining_km: round(remaining, 1),
+            predicted_days_remaining: daysRemaining,
+            predicted_date: daysRemaining != null ? localDateString(new Date(Date.now() + daysRemaining * 86400000)) : null,
+          });
+          break; // 只展示下一个未达成的目标
+        }
       }
-    } catch {
-      // 忽略建表前查询异常
     }
 
-    // 2. 查询当前车机总里程
-    const odoRes = await pool.query(
-      `SELECT COALESCE(MAX(odometer), 0) as current_odometer FROM positions WHERE car_id = $1`,
-      [carId]
-    );
-    const currentOdometer = Number(Number(odoRes.rows[0]?.current_odometer || 0).toFixed(1));
-
-    // 计算提车至今的天数与日均里程
-    const deliveryTime = new Date(`${deliveryDateStr}T00:00:00+08:00`).getTime();
-    const nowTime = Date.now();
-    const daysSinceDelivery = Math.max(1, Math.round((nowTime - deliveryTime) / (1000 * 60 * 60 * 24)));
-    const dailyAvgKm = Number((currentOdometer / daysSinceDelivery).toFixed(1));
-
-    // 3. 定义里程碑梯级目标
-    const TARGETS = [
-      { target_km: 1000, label: '1,000 km 破千纪念' },
-      { target_km: 5000, label: '5,000 km 磨合达标' },
-      { target_km: 10000, label: '10,000 km 黄金里程' },
-      { target_km: 20000, label: '20,000 km 首保大关' },
-      { target_km: 50000, label: '50,000 km 半程王者' },
-      { target_km: 100000, label: '100,000 km 传奇勋章' },
-    ];
-
-    // 4. 查询达成记录
-    const milestones: CarMilestone[] = await Promise.all(
-      TARGETS.map(async (t) => {
-        const isAchieved = currentOdometer >= t.target_km;
-        if (isAchieved) {
-          // 查询首次达成该里程的记录
-          const recRes = await pool.query(
-            `SELECT drive_id, date, odometer 
-             FROM positions 
-             WHERE car_id = $1 AND odometer >= $2 
-             ORDER BY date ASC 
-             LIMIT 1`,
-            [carId, t.target_km]
-          );
-
-          if (recRes.rows.length > 0) {
-            const hitRow = recRes.rows[0];
-            const hitTime = new Date(hitRow.date).getTime();
-            const durationMs = Math.max(0, hitTime - deliveryTime);
-            const totalHours = Math.floor(durationMs / (1000 * 60 * 60));
-            const days = Math.floor(totalHours / 24);
-            const hours = totalHours % 24;
-
-            return {
-              target_km: t.target_km,
-              label: t.label,
-              is_achieved: true,
-              achieved_date: new Date(hitRow.date).toISOString(),
-              achieved_duration_days: days,
-              achieved_duration_hours: hours,
-              achieved_duration_text: `历时 ${days} 天 ${hours} 小时`,
-              drive_id: hitRow.drive_id ? Number(hitRow.drive_id) : undefined,
-            };
-          }
-
-          // 兜底达成
-          return {
-            target_km: t.target_km,
-            label: t.label,
-            is_achieved: true,
-            achieved_duration_days: daysSinceDelivery,
-            achieved_duration_text: `已达成`,
-          };
-        }
-
-        // 未达成：计算进度与预测达成天数
-        const remainingKm = Number((t.target_km - currentOdometer).toFixed(1));
-        const progressPercent = Number(((currentOdometer / t.target_km) * 100).toFixed(1));
-        const effectiveDailyAvg = Math.max(5, dailyAvgKm);
-        const predictedDays = Math.round(remainingKm / effectiveDailyAvg);
-        const predictedDateObj = new Date(nowTime + predictedDays * 24 * 60 * 60 * 1000);
-        const predictedDateStr = predictedDateObj.toISOString().split('T')[0];
-
-        return {
-          target_km: t.target_km,
-          label: t.label,
-          is_achieved: false,
-          current_progress_percent: Math.min(99.9, progressPercent),
-          remaining_km: remainingKm,
-          predicted_days_remaining: predictedDays,
-          predicted_date: predictedDateStr,
-        };
-      })
-    );
-
     return {
-      car_id: carId,
-      delivery_date: deliveryDateStr,
-      days_since_delivery: daysSinceDelivery,
-      current_odometer: currentOdometer,
-      daily_avg_km: dailyAvgKm,
+      car_id: id,
+      delivery_date: deliveryDate,
+      days_since_delivery: daysSinceDelivery != null ? Math.floor(daysSinceDelivery) : null,
+      current_odometer: round(odometer, 1),
+      daily_avg_km: round(dailyAvg, 1),
+      recent_daily_avg_km: round(recentDailyAvg, 1),
       milestones,
     };
   } catch (err) {
     console.error('fetchCarMilestones error:', err);
-    return emptyCarMilestones(carId ?? 0);
+    return emptyCarMilestones(carId ?? null);
   }
 }
-

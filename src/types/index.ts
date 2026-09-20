@@ -1,42 +1,46 @@
+// 约定：任何可能"未知"的值一律为 null，由界面显示 "--" / "暂无数据"，数据层不得用默认值顶替
+
 // 视图模式
 export type ViewMode = 'auto' | 'mobile' | 'desktop';
 
 // 车辆实时状态
 export interface Car {
   id: number;
-  name: string;
-  model: string;
-  trim_badging: string;
-  vin: string;
-  exterior_color: string;
-  wheel_type: string;
-  usable_battery_level: number;
-  battery_level: number;
-  ideal_battery_range_km: number;
-  est_battery_range_km: number;
-  odometer: number;
-  speed: number;
-  power: number;
-  state: 'driving' | 'charging' | 'asleep' | 'online' | 'offline' | 'suspended' | string;
+  name: string | null;
+  model: string | null;
+  trim_badging: string | null;
+  marketing_name: string | null;
+  vin: string | null;
+  exterior_color: string | null;
+  wheel_type: string | null;
+  usable_battery_level: number | null;
+  battery_level: number | null;
+  // 按 TeslaMate settings.preferred_range 选取的续航 (ideal 或 rated)
+  range_km: number | null;
+  est_battery_range_km: number | null;
+  odometer: number | null;
+  speed: number | null;
+  power: number | null;
+  state: 'driving' | 'charging' | 'asleep' | 'online' | 'offline' | 'suspended' | 'updating' | string | null;
   since: string | null;
   inside_temp: number | null;
   outside_temp: number | null;
-  is_climate_on: boolean;
-  is_locked: boolean;
-  is_sentry_mode: boolean;
-  doors_open: boolean;
-  windows_open: boolean;
-  frunk_open: boolean;
-  trunk_open: boolean;
-  tire_pressure_fl: number;
-  tire_pressure_fr: number;
-  tire_pressure_rl: number;
-  tire_pressure_rr: number;
+  is_climate_on: boolean | null;
+  is_locked: boolean | null;
+  is_sentry_mode: boolean | null;
+  doors_open: boolean | null;
+  windows_open: boolean | null;
+  frunk_open: boolean | null;
+  trunk_open: boolean | null;
+  tire_pressure_fl: number | null;
+  tire_pressure_fr: number | null;
+  tire_pressure_rl: number | null;
+  tire_pressure_rr: number | null;
   latitude: number | null;
   longitude: number | null;
-  address: string;
-  version: string;
-  battery_heater: boolean;
+  address: string | null;
+  version: string | null;
+  battery_heater: boolean | null;
 }
 
 // 行程摘要
@@ -44,25 +48,28 @@ export interface DriveSummary {
   id: number;
   car_id: number;
   start_date: string;
-  end_date: string;
-  duration_min: number;
-  distance: number;
-  speed_max: number;
-  speed_avg: number;
-  power_max: number;
-  power_min: number;
-  start_address: string;
-  end_address: string;
-  start_battery_level: number;
-  end_battery_level: number;
-  consumption_kwh: number;
-  efficiency_wh_km: number;
-  start_position_id?: number;
-  end_position_id?: number;
-  ascent?: number;
-  descent?: number;
-  outside_temp_avg?: number;
-  // ⚡ 智能合并字段
+  end_date: string | null;
+  duration_min: number | null;
+  distance: number | null;
+  speed_max: number | null;
+  speed_avg: number | null;
+  power_max: number | null;
+  power_min: number | null;
+  start_address: string | null;
+  end_address: string | null;
+  start_battery_level: number | null;
+  end_battery_level: number | null;
+  consumption_kwh: number | null;
+  efficiency_wh_km: number | null;
+  start_position_id?: number | null;
+  end_position_id?: number | null;
+  ascent?: number | null;
+  descent?: number | null;
+  outside_temp_avg?: number | null;
+  // 起终点标识 (地理围栏 id 或地址 id)，用于判断相邻行程是否首尾相接
+  start_place_key?: string | null;
+  end_place_key?: string | null;
+  // 智能合并字段
   is_merged?: boolean;
   merged_count?: number;
   merged_drive_ids?: number[];
@@ -79,23 +86,23 @@ export interface PositionPoint {
   date: string;
   latitude: number;
   longitude: number;
-  speed: number;
-  power: number;
-  battery_level: number;
-  odometer: number;
-  elevation: number;
+  speed: number | null;
+  power: number | null;
+  battery_level: number | null;
+  odometer: number | null;
+  elevation: number | null;
   inside_temp?: number | null;
   outside_temp?: number | null;
 }
 
-// 🗺️ 全量足迹轨迹段 (用于绘制全景行车大地图)
+// 全量足迹轨迹段 (用于绘制全景行车大地图)
 export interface FootprintDrivePath {
   id: number;
   start_date: string;
-  distance: number;
-  duration_min: number;
-  start_address: string;
-  end_address: string;
+  distance: number | null;
+  duration_min: number | null;
+  start_address: string | null;
+  end_address: string | null;
   points: [number, number][]; // [lat, lng] GCJ-02
 }
 
@@ -104,20 +111,19 @@ export interface ParkingSummary {
   id: number;
   car_id: number;
   start_date: string;
-  end_date: string;
-  duration_min: number;
-  start_ideal_range_km: number;
-  end_ideal_range_km: number;
-  start_battery_level: number;
-  end_battery_level: number;
-  range_lost_km: number;
-  energy_lost_kwh: number;
-  drain_rate_kwh_per_hour: number;
-  address: string;
-  is_home: boolean;
+  end_date: string | null;
+  duration_min: number | null;
+  start_range_km: number | null;
+  end_range_km: number | null;
+  start_battery_level: number | null;
+  end_battery_level: number | null;
+  range_lost_km: number | null;
+  energy_lost_kwh: number | null;
+  drain_rate_kwh_per_hour: number | null;
+  address: string | null;
+  is_home: boolean | null;
   has_charge: boolean;
-  sleep_hours?: number;
-  online_hours?: number;
+  is_current: boolean;
 }
 
 // 停车详情
@@ -127,11 +133,10 @@ export interface ParkingDetail extends ParkingSummary {
 
 export interface ParkingPoint {
   date: string;
-  battery_level: number;
-  ideal_battery_range_km: number;
+  battery_level: number | null;
+  range_km: number | null;
   inside_temp?: number | null;
   outside_temp?: number | null;
-  state?: string;
 }
 
 // 充电记录摘要
@@ -139,18 +144,21 @@ export interface ChargeSummary {
   id: number;
   car_id: number;
   start_date: string;
-  end_date: string;
-  duration_min: number;
-  charge_energy_added: number;
-  charge_energy_used: number;
-  start_battery_level: number;
-  end_battery_level: number;
-  start_ideal_range_km: number;
-  end_ideal_range_km: number;
-  cost: number;
-  address: string;
-  fast_charger_brand?: string;
-  charger_type?: string;
+  end_date: string | null;
+  duration_min: number | null;
+  charge_energy_added: number | null;
+  charge_energy_used: number | null;
+  start_battery_level: number | null;
+  end_battery_level: number | null;
+  start_range_km: number | null;
+  end_range_km: number | null;
+  cost: number | null;
+  // cost 的来源：teslamate = charging_processes.cost；tou = 汉化仪表盘分时电价表；configured = 配置的电价估算
+  cost_source: 'teslamate' | 'tou' | 'configured' | null;
+  address: string | null;
+  is_fast_charge: boolean | null;
+  fast_charger_brand: string | null;
+  max_charger_power_kw: number | null;
 }
 
 export interface ChargeDetail extends ChargeSummary {
@@ -159,147 +167,178 @@ export interface ChargeDetail extends ChargeSummary {
 
 export interface ChargePoint {
   date: string;
-  battery_level: number;
-  charge_energy_added: number;
-  charger_power: number;
-  charger_voltage?: number;
-  charger_actual_current?: number;
+  battery_level: number | null;
+  charge_energy_added: number | null;
+  charger_power: number | null;
+  charger_voltage?: number | null;
+  charger_actual_current?: number | null;
   outside_temp?: number | null;
 }
 
-// 电量去向深度剖析
+// 电量去向剖析 (只统计有记录的数据)
 export interface EnergyBreakdown {
-  total_energy_added_kwh: number;
-  grid_energy_used_kwh: number;
-  driving_energy_kwh: number;
-  parking_drain_kwh: number;
-  charging_loss_kwh: number;
-  remaining_in_battery_kwh: number;
-  driving_percent: number;
-  parking_percent: number;
-  charging_efficiency_percent: number;
-  online_hours: number;
-  sleep_hours: number;
+  total_energy_added_kwh: number | null;
+  grid_energy_used_kwh: number | null;
+  driving_energy_kwh: number | null;
+  parking_drain_kwh: number | null;
+  charging_loss_kwh: number | null;
+  driving_percent: number | null;
+  parking_percent: number | null;
+  charging_efficiency_percent: number | null;
+  online_hours: number | null;
+  asleep_hours: number | null;
+  offline_hours: number | null;
+  avg_parking_drain_kwh_per_hour: number | null;
 }
 
-// 🔋 电池健康与衰减模型
+// 电池健康
 export interface BatteryHealthInfo {
-  nominal_full_pack_kwh: number;
-  current_usable_pack_kwh: number;
-  health_percent: number;
-  estimated_full_range_km: number;
-  original_full_range_km: number;
-  degradation_percent: number;
-  slow_charge_count: number;
-  fast_charge_count: number;
-  slow_charge_percent: number;
-  cycle_count: number;
+  // 由充电记录推导的当前满电可用容量 (kWh)
+  current_capacity_kwh: number | null;
+  // 有记录以来推导出的最大容量 (kWh)，接入 TeslaMate 之后的基准，不等于出厂值
+  max_observed_capacity_kwh: number | null;
+  // 当前满电续航估算 (km)
+  estimated_full_range_km: number | null;
+  // 出厂满电续航：来自配置 BATTERY_ORIGINAL_RANGE_KM，未配置为 null
+  original_full_range_km: number | null;
+  health_percent: number | null;
+  degradation_percent: number | null;
+  // health/degradation 的对比基准
+  baseline: 'configured_original' | 'max_observed' | null;
+  slow_charge_count: number | null;
+  fast_charge_count: number | null;
+  total_energy_added_kwh: number | null;
+  cycle_count: number | null;
+  is_lfp: boolean | null;
+  // 参与容量推导的充电次数
+  sample_count: number;
 }
 
-// 📅 月度能耗报告
+// 月度能耗报告
 export interface MonthlyReport {
   month: string;
   drive_count: number;
   distance_km: number;
-  drive_kwh: number;
-  avg_wh_km: number;
+  drive_kwh: number | null;
+  avg_wh_km: number | null;
   charge_count: number;
   charge_energy_kwh: number;
-  charge_cost: number;
-  fuel_equivalent_cost: number;
-  saved_cost: number;
+  charge_cost: number | null;
+  // 有多少次充电没有费用数据 (不计入 charge_cost)
+  unpriced_charge_count: number;
+  fuel_equivalent_cost: number | null;
+  saved_cost: number | null;
 }
 
-// 🌡️ 气温能耗关联点
+// 气温能耗关联点
 export interface TemperatureEfficiencyPoint {
   temp: number;
   drive_count: number;
   avg_wh_km: number;
 }
 
-// 🗺️ 常用地点驻留统计
+// 常用地点驻留统计
 export interface VisitedLocation {
   name: string;
   visit_count: number;
-  total_parking_hours: number;
-  is_home: boolean;
-  latitude?: number;
-  longitude?: number;
+  total_parking_hours: number | null;
+  is_home: boolean | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // 全生命周期统计
 export interface LifetimeStats {
-  total_drives: number; // 统一为智能合并后的连贯行程数 (如 69 段)
-  raw_total_drives?: number; // 原始底表记录总数 (如 101 次)
-  total_distance_km: number; // 车辆仪表盘全局总里程 (如 1,034.7 km)
-  logged_distance_km?: number; // 实际记录行程行驶总里程 (如 921.5 km)
-  first_logged_odometer?: number; // 首次接入 TeslaMate 时的里程读数 (如 113.6 km)
-  unlogged_distance_km?: number; // 接入前未记录的里程 (如 113.2 km)
-  total_drive_duration_hours: number;
-  total_energy_kwh: number;
-  avg_efficiency_wh_km: number;
+  total_drives: number; // 智能合并后的连贯行程数
+  raw_total_drives: number; // 原始底表记录总数
+  total_distance_km: number | null; // 车辆当前总里程 (odometer)
+  logged_distance_km: number | null; // TeslaMate 实际记录的行驶里程
+  first_logged_odometer: number | null; // 首次接入 TeslaMate 时的里程读数
+  first_logged_date: string | null;
+  total_drive_duration_hours: number | null;
+  total_energy_kwh: number | null;
+  avg_efficiency_wh_km: number | null;
   total_charges: number;
-  total_charge_energy_added: number;
-  total_charge_cost: number;
-  sentry_duration_hours: number;
-  sleep_duration_hours: number;
+  total_charge_energy_added: number | null;
+  total_charge_cost: number | null;
+  unpriced_charge_count: number;
+  asleep_duration_hours: number | null;
 }
 
-// 🏆 极值单项记录
+// 油车对比 (只比较有记录的里程与有记录的电费)
+export interface SavingsAnalysis {
+  configured: boolean; // 是否配置了油价与参照油耗
+  fuel_price_cny_per_litre: number | null;
+  fuel_consumption_l_per_100km: number | null;
+  logged_distance_km: number | null;
+  ev_cost: number | null;
+  ev_cost_per_km: number | null;
+  fuel_cost: number | null;
+  fuel_cost_per_km: number | null;
+  saved_cost: number | null;
+  fuel_liters_saved: number | null;
+  co2_reduced_kg: number | null;
+  unpriced_charge_count: number;
+}
+
+// 极值单项记录
 export interface DrivingRecordItem {
   value: number;
   formatted_value: string;
   unit: string;
   title: string;
   sub_text?: string;
-  date: string;
-  location?: string;
+  date: string | null;
+  location?: string | null;
   drive_id?: number;
   secondary_value?: string;
 }
 
-// 🏆 某时间周期下的完整极值榜单
+// 某时间周期下的完整极值榜单；没有合格行程的项为 null
 export interface DrivingRecords {
-  period: 'month' | 'half_year' | 'year' | 'all';
-  max_speed: DrivingRecordItem;
-  longest_distance: DrivingRecordItem;
-  longest_duration: DrivingRecordItem;
-  best_efficiency: DrivingRecordItem;
-  max_power: DrivingRecordItem;
-  max_regen: DrivingRecordItem;
-  max_ascent: DrivingRecordItem;
+  period: RecordPeriod;
+  drive_count: number;
+  max_speed: DrivingRecordItem | null;
+  longest_distance: DrivingRecordItem | null;
+  longest_duration: DrivingRecordItem | null;
+  best_efficiency: DrivingRecordItem | null;
+  max_power: DrivingRecordItem | null;
+  max_regen: DrivingRecordItem | null;
+  max_ascent: DrivingRecordItem | null;
   extreme_temp: {
-    lowest: DrivingRecordItem;
-    highest: DrivingRecordItem;
+    lowest: DrivingRecordItem | null;
+    highest: DrivingRecordItem | null;
   };
 }
 
-// 🎯 提车里程碑单项事件
+// 里程碑单项
 export interface CarMilestone {
   target_km: number;
   label: string;
   is_achieved: boolean;
-  achieved_date?: string; // ISO 日期
-  achieved_duration_days?: number;
-  achieved_duration_hours?: number;
-  achieved_duration_text?: string; // 如 "历时 21 天 16 小时"
-  drive_id?: number; // 达成里程碑时的行程 ID
-  current_progress_percent?: number;
-  remaining_km?: number;
-  predicted_days_remaining?: number;
-  predicted_date?: string; // 预计达成日期
+  // true = 接入 TeslaMate 之前就已超过，达成时间未知
+  achieved_before_logging?: boolean;
+  achieved_date?: string | null;
+  achieved_duration_days?: number | null;
+  drive_id?: number | null;
+  current_progress_percent?: number | null;
+  remaining_km?: number | null;
+  predicted_days_remaining?: number | null;
+  predicted_date?: string | null;
 }
 
-// 🎯 提车里程碑总览数据
+// 里程碑总览
 export interface CarMilestonesData {
-  car_id: number;
-  delivery_date: string; // "2026-08-16"
-  days_since_delivery: number;
-  current_odometer: number;
-  daily_avg_km: number;
+  car_id: number | null;
+  delivery_date: string | null; // 来自配置 DELIVERY_DATE
+  days_since_delivery: number | null;
+  current_odometer: number | null;
+  // 提车至今日均 = 当前总里程 ÷ 提车天数 (需要配置提车日)
+  daily_avg_km: number | null;
+  // 近期日均 = 有记录里程 ÷ 有记录天数，用于预测
+  recent_daily_avg_km: number | null;
   milestones: CarMilestone[];
 }
 
 export type RecordPeriod = 'month' | 'half_year' | 'year' | 'all';
 export type DrivingRecordsByPeriod = Record<RecordPeriod, DrivingRecords>;
-

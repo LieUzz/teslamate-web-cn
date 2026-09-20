@@ -4,7 +4,7 @@ import { fetchBatteryHealth, fetchCars } from '@/lib/queries';
 import { ArrowLeft, Activity, BatteryCharging, Award } from 'lucide-react';
 import { BatteryHealthCharts } from '@/components/charts/BatteryHealthCharts';
 
-export const dynamic = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? 'auto' : 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
 export default async function BatteryHealthPage() {
   const [health, cars] = await Promise.all([
