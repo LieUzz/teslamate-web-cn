@@ -56,7 +56,7 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
       <div className="flex items-center justify-between">
         <Link
           href="/charges"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回充电记录</span>
@@ -69,7 +69,7 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-white flex items-center gap-2">
+              <h1 className="text-lg font-bold text-zinc-50 flex items-center gap-2">
                 <Zap className="w-5 h-5 text-emerald-400" />
                 <span>充电过程与功率详情</span>
               </h1>
@@ -111,13 +111,13 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">电量变化</div>
-            <div className="text-base font-bold text-white mt-0.5">
+            <div className="text-base font-bold text-zinc-50 mt-0.5">
               {formatPercent(charge.start_battery_level)} ➔ {formatPercent(charge.end_battery_level)}
             </div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">充电时长</div>
-            <div className="text-base font-bold text-white mt-0.5">{formatDuration(charge.duration_min)}</div>
+            <div className="text-base font-bold text-zinc-50 mt-0.5">{formatDuration(charge.duration_min)}</div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">充电效率</div>
@@ -128,7 +128,7 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
 
       {/* 📈 充电功率与 SOC 爬升图 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 shadow-xl">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
+        <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2 mb-4">
           <BatteryCharging className="w-4 h-4 text-emerald-400" />
           <span>充电功率曲线与电池 SOC 爬升</span>
         </h2>

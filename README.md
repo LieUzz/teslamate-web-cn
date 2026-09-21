@@ -12,6 +12,13 @@ anything unknown renders as `--` / "暂无数据".
 - Charge cost: TOU table of teslamate-chinese-dashboards > TeslaMate's
   `charging_processes.cost` (geofence pricing) > configured price (marked 估算).
 - The petrol-car comparison module ("省了多少油钱") has been removed.
+- Themes: dark / light / follow system, chosen in the floating settings
+  button (外观) and stored in `localStorage`. Neutral colours are the `zinc-*`
+  classes, which resolve to CSS variables in `src/app/globals.css`
+  (`[data-theme="light"]` inverts the scale); charts read the `--chart-*`
+  variables via `src/lib/useChartColors.ts`. New UI must use `zinc-*` classes
+  or those variables, not `text-white` or neutral hex values. The share-image
+  modals are pinned to dark with `data-theme="dark"`.
 - Optional configuration, none of which has a default: `AMAP_KEY`,
   `DELIVERY_DATE`, `ELECTRICITY_PRICE_CNY_PER_KWH`, `BATTERY_ORIGINAL_RANGE_KM`,
   `HOME_GEOFENCE_NAME`, `MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_NAMESPACE`.

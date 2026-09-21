@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { PositionPoint } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { Empty } from '@/components/common/Empty';
+import { useChartColors } from '@/lib/useChartColors';
 
 interface DriveProfileChartProps {
   positions: PositionPoint[];
@@ -37,17 +38,19 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<any>(null);
 
+  const colors = useChartColors();
+
   useEffect(() => {
     let isMounted = true;
 
     async function initChart() {
-      if (!chartRef.current || positions.length === 0) return;
+      if (!chartRef.current || positions.length === 0 || !colors) return;
       const { echarts } = await import('@/lib/echarts');
 
       if (!isMounted) return;
 
       if (!instanceRef.current) {
-        instanceRef.current = echarts.init(chartRef.current, 'dark');
+        instanceRef.current = echarts.init(chartRef.current);
       }
 
       const times = positions.map((p) => {
@@ -69,14 +72,14 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
         backgroundColor: 'transparent',
         tooltip: {
           trigger: 'axis',
-          backgroundColor: 'rgba(24, 24, 27, 0.95)',
-          borderColor: '#3f3f46',
-          textStyle: { color: '#e4e4e7', fontSize: 12 },
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          textStyle: { color: colors.tooltipText, fontSize: 12 },
           axisPointer: { type: 'cross' },
         },
         legend: {
           data: ['车速 (km/h)', '功率 (kW)', ...(hasElevation ? ['海拔 (m)'] : [])],
-          textStyle: { color: '#a1a1aa', fontSize: 11 },
+          textStyle: { color: colors.legend, fontSize: 11 },
           top: 0,
         },
         grid: {
@@ -90,17 +93,17 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
           type: 'category',
           boundaryGap: false,
           data: times,
-          axisLine: { lineStyle: { color: '#3f3f46' } },
-          axisLabel: { color: '#71717a', fontSize: 10 },
+          axisLine: { lineStyle: { color: colors.axis } },
+          axisLabel: { color: colors.label, fontSize: 10 },
         },
         yAxis: [
           {
             type: 'value',
             name: '速度/功率',
             position: 'left',
-            axisLine: { lineStyle: { color: '#3f3f46' } },
-            splitLine: { lineStyle: { color: '#27272a' } },
-            axisLabel: { color: '#71717a', fontSize: 10 },
+            axisLine: { lineStyle: { color: colors.axis } },
+            splitLine: { lineStyle: { color: colors.split } },
+            axisLabel: { color: colors.label, fontSize: 10 },
           },
           ...(hasElevation
             ? [
@@ -110,8 +113,8 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
                   position: 'right',
                   scale: true,
                   splitLine: { show: false },
-                  axisLine: { lineStyle: { color: '#3f3f46' } },
-                  axisLabel: { color: '#71717a', fontSize: 10 },
+                  axisLine: { lineStyle: { color: colors.axis } },
+                  axisLabel: { color: colors.label, fontSize: 10 },
                 },
               ]
             : []),
@@ -192,7 +195,7 @@ export function DriveProfileChart({ positions, height = '280px' }: DriveProfileC
         instanceRef.current = null;
       }
     };
-  }, [positions]);
+  }, [positions, colors]);
 
   if (positions.length === 0) {
     return <Empty as="chart" title="该行程暂无采样数据" />;

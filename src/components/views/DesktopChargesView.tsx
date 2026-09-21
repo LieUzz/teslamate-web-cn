@@ -25,7 +25,7 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
       {/* 顶部汇总卡片 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/60 p-5 rounded-3xl border border-zinc-800">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
             <Zap className="w-5 h-5 text-emerald-500" />
             <span>充电记录与统计</span>
           </h1>
@@ -47,7 +47,7 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
           </div>
           <div className="bg-zinc-900 px-3.5 py-2 rounded-2xl border border-zinc-800">
             <div className="text-zinc-400">所列充电时长</div>
-            <div className="text-sm font-bold text-white mt-0.5">{formatDuration(totalDuration)}</div>
+            <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatDuration(totalDuration)}</div>
           </div>
         </div>
       </div>
@@ -80,13 +80,13 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
                       {describeCharger(charge)}
                     </span>
                   </td>
-                  <td className="py-3.5 text-white font-medium max-w-xs truncate">
+                  <td className="py-3.5 text-zinc-50 font-medium max-w-xs truncate">
                     {charge.address ?? DASH}
                   </td>
                   <td className="py-3.5 text-zinc-300">
                     {formatDuration(charge.duration_min)}
                   </td>
-                  <td className="py-3.5 font-semibold text-white">
+                  <td className="py-3.5 font-semibold text-zinc-50">
                     {formatPercent(charge.start_battery_level)} → {formatPercent(charge.end_battery_level)}
                   </td>
                   <td className="py-3.5 font-bold text-emerald-400">

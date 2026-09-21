@@ -24,7 +24,7 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
             <Award className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-1.5">
+            <h2 className="text-base sm:text-lg font-bold text-zinc-50 flex items-center gap-1.5">
               <span>爱车里程碑</span>
               {data.milestones.length > 0 && (
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -51,7 +51,7 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
       >
         <div>
           <div className="text-[11px] text-zinc-400">提车至今</div>
-          <div className="text-sm font-bold text-white mt-0.5">
+          <div className="text-sm font-bold text-zinc-50 mt-0.5">
             {formatOrDash(data.days_since_delivery)} <span className="text-[10px] text-zinc-400 font-normal">天</span>
           </div>
         </div>
@@ -106,7 +106,7 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
                         <Sparkles className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-white">{m.label}</div>
+                        <div className="text-xs font-bold text-zinc-50">{m.label}</div>
                         <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>

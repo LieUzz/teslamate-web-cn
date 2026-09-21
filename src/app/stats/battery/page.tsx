@@ -34,7 +34,7 @@ export default async function BatteryHealthPage() {
       <div className="flex items-center justify-between">
         <Link
           href="/stats"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回统计大盘</span>
@@ -50,7 +50,7 @@ export default async function BatteryHealthPage() {
               <Activity className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-bold text-white whitespace-nowrap truncate">
+              <h1 className="text-base sm:text-lg font-bold text-zinc-50 whitespace-nowrap truncate">
                 电池健康度与衰减估算
               </h1>
               <p className="text-[11px] text-zinc-400 mt-0.5 truncate">
@@ -85,7 +85,7 @@ export default async function BatteryHealthPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           <div className="bg-zinc-950/60 p-2.5 sm:p-3 rounded-2xl border border-zinc-800/60 flex flex-col justify-center">
             <div className="text-[11px] text-zinc-400 whitespace-nowrap truncate">满电推算续航</div>
-            <div className="text-sm sm:text-base font-bold text-white mt-1 whitespace-nowrap">
+            <div className="text-sm sm:text-base font-bold text-zinc-50 mt-1 whitespace-nowrap">
               {formatOrDash(health.estimated_full_range_km, { digits: 1 })}
               {health.estimated_full_range_km != null && <span className="text-[10px] text-zinc-400 font-normal"> km</span>}
             </div>
@@ -132,7 +132,7 @@ export default async function BatteryHealthPage() {
 
       {/* 📈 容量/续航走势 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
+        <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2 mb-4">
           <BatteryCharging className="w-4 h-4 text-emerald-400" />
           <span>满电续航对比</span>
         </h2>

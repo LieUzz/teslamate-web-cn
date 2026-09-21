@@ -51,7 +51,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white">综合能效与统计大盘</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-zinc-50">综合能效与统计大盘</h1>
               <p className="text-xs text-zinc-400 mt-0.5">基于 TeslaMate 有记录数据的电量去向、行车与停车损耗分析</p>
             </div>
           </div>
@@ -72,10 +72,10 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-105 transition-transform">
               <Activity className="w-4 h-4" />
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-50 transition-colors" />
           </div>
           <div className="mt-3">
-            <div className="text-xs font-bold text-white">电池健康度</div>
+            <div className="text-xs font-bold text-zinc-50">电池健康度</div>
             <div className="text-[11px] text-emerald-400 mt-0.5 font-medium">容量推导 · 充电构成</div>
           </div>
         </Link>
@@ -89,10 +89,10 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-105 transition-transform">
               <MapPin className="w-4 h-4" />
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-50 transition-colors" />
           </div>
           <div className="mt-3">
-            <div className="text-xs font-bold text-white">行车足迹热力</div>
+            <div className="text-xs font-bold text-zinc-50">行车足迹热力</div>
             <div className="text-[11px] text-blue-400 mt-0.5 font-medium">行驶轨迹 · 常去地点</div>
           </div>
         </Link>
@@ -106,10 +106,10 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-105 transition-transform">
               <Calendar className="w-4 h-4" />
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-50 transition-colors" />
           </div>
           <div className="mt-3">
-            <div className="text-xs font-bold text-white">月度能耗账单</div>
+            <div className="text-xs font-bold text-zinc-50">月度能耗账单</div>
             <div className="text-[11px] text-purple-400 mt-0.5 font-medium">逐月里程 · 用车开销</div>
           </div>
         </Link>
@@ -123,10 +123,10 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 group-hover:scale-105 transition-transform">
               <ThermometerSun className="w-4 h-4" />
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-50 transition-colors" />
           </div>
           <div className="mt-3">
-            <div className="text-xs font-bold text-white">气温与能耗关联</div>
+            <div className="text-xs font-bold text-zinc-50">气温与能耗关联</div>
             <div className="text-[11px] text-amber-400 mt-0.5 font-medium">不同气温 · 能效分布</div>
           </div>
         </Link>
@@ -135,7 +135,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
       {/* ⚡ 核心 1：行车耗电 vs 停车漏电全景拆解 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-lg space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-bold text-zinc-50 flex items-center gap-2">
             <BatteryCharging className="w-4 h-4 text-emerald-400" />
             <span>电量流向与消耗对比</span>
           </h2>
@@ -176,7 +176,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 text-xs">
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/80">
             <div className="text-zinc-400 text-[11px]">行车综合能耗</div>
-            <div className="text-base font-bold text-white mt-1">{formatOrDash(stats.avg_efficiency_wh_km, { digits: 0 })} <span className="text-[10px] text-zinc-400 font-normal">Wh/km</span></div>
+            <div className="text-base font-bold text-zinc-50 mt-1">{formatOrDash(stats.avg_efficiency_wh_km, { digits: 0 })} <span className="text-[10px] text-zinc-400 font-normal">Wh/km</span></div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/80">
             <div className="text-zinc-400 text-[11px]">停车静置损耗</div>
@@ -196,7 +196,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
       {/* ⏱️ 核心 2：车辆状态时间分布 (TeslaMate 不记录哨兵状态，这里只有 在线/睡眠/离线) */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-lg space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-bold text-zinc-50 flex items-center gap-2">
             <Clock className="w-4 h-4 text-purple-400" />
             <span>车辆静置状态与待机分析</span>
           </h2>
@@ -212,7 +212,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             </div>
             <div>
               <div className="text-zinc-400 text-[11px]">在线 / 唤醒</div>
-              <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(energy.online_hours, { digits: 1, unit: '小时', locale: true })}</div>
+              <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(energy.online_hours, { digits: 1, unit: '小时', locale: true })}</div>
             </div>
           </div>
 
@@ -222,7 +222,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             </div>
             <div>
               <div className="text-zinc-400 text-[11px]">睡眠</div>
-              <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(energy.asleep_hours, { digits: 1, unit: '小时', locale: true })}</div>
+              <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(energy.asleep_hours, { digits: 1, unit: '小时', locale: true })}</div>
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             </div>
             <div>
               <div className="text-zinc-400 text-[11px]">离线</div>
-              <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(energy.offline_hours, { digits: 1, unit: '小时', locale: true })}</div>
+              <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(energy.offline_hours, { digits: 1, unit: '小时', locale: true })}</div>
             </div>
           </div>
         </div>

@@ -52,7 +52,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-900/60 p-5 rounded-3xl border border-zinc-800">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
               <Route className="w-5 h-5 text-blue-500" />
               <span>历史行程与驾驶分析</span>
             </h1>
@@ -86,7 +86,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
           <div className="flex items-center gap-2.5 text-xs">
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
               <div className="text-zinc-400 text-[10px]">行驶里程</div>
-              <div className="text-xs font-bold text-white mt-0.5">{formatOrDash(totalDistance, { digits: 1, unit: 'km' })}</div>
+              <div className="text-xs font-bold text-zinc-50 mt-0.5">{formatOrDash(totalDistance, { digits: 1, unit: 'km' })}</div>
             </div>
             <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-800 text-center">
               <div className="text-zinc-400 text-[10px]">动力耗电</div>
@@ -148,7 +148,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                           <span className="text-red-400 font-bold mr-1">终</span>{drive.end_address ?? DASH}
                         </div>
                       </td>
-                      <td className="py-3.5 font-bold text-white whitespace-nowrap">
+                      <td className="py-3.5 font-bold text-zinc-50 whitespace-nowrap">
                         {formatDistance(drive.distance)}
                       </td>
                       <td className="py-3.5 text-zinc-300 whitespace-nowrap">
@@ -158,7 +158,7 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                         {formatPercent(drive.start_battery_level)} → {formatPercent(drive.end_battery_level)}{batteryDiff != null ? ` (${batteryDiff > 0 ? '+' : ''}${batteryDiff}%)` : ''}
                       </td>
                       <td className="py-3.5 whitespace-nowrap">
-                        <span className="font-bold text-white">{formatEnergy(drive.consumption_kwh)}</span>
+                        <span className="font-bold text-zinc-50">{formatEnergy(drive.consumption_kwh)}</span>
                         <span className="text-zinc-400 text-[11px] ml-1.5">({formatEfficiency(drive.efficiency_wh_km)})</span>
                       </td>
                       <td className="py-3.5 text-zinc-300 whitespace-nowrap">

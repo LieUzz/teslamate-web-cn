@@ -58,11 +58,11 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
               <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
                 <Route className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-white">最近行程</span>
+              <span className="text-xs font-bold text-zinc-50">最近行程</span>
             </div>
             <Link
               href={`/drives/${latestDrive.id}`}
-              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5"
+              className="text-[11px] text-zinc-400 hover:text-zinc-50 flex items-center gap-0.5"
             >
               <span>查看轨迹</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -72,7 +72,7 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
           <div className="mt-2.5 space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-zinc-400">行驶里程 / 耗时</span>
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-zinc-50">
                 {formatDistance(latestDrive.distance)} · {formatDuration(latestDrive.duration_min)}
               </span>
             </div>
@@ -98,11 +98,11 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
               <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
                 <Zap className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-white">最近充电</span>
+              <span className="text-xs font-bold text-zinc-50">最近充电</span>
             </div>
             <Link
               href={`/charges`}
-              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-0.5"
+              className="text-[11px] text-zinc-400 hover:text-zinc-50 flex items-center gap-0.5"
             >
               <span>充电明细</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -118,7 +118,7 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-400">电量与时长</span>
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-zinc-50">
                 {formatPercent(latestCharge.start_battery_level)} → {formatPercent(latestCharge.end_battery_level)} ({formatDuration(latestCharge.duration_min)})
               </span>
             </div>
@@ -139,9 +139,9 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
           <span className="text-[10px] text-zinc-400 font-normal">已记录 {formatOrDash(stats.logged_distance_km, { digits: 1, locale: true })} km</span>
         </div>
         <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-          <div>连贯行程: <strong className="text-white">{stats.total_drives} 段</strong></div>
-          <div>驾驶时长: <strong className="text-white">{formatOrDash(stats.total_drive_duration_hours, { digits: 1 })} 小时</strong></div>
-          <div>累计充入: <strong className="text-white">{formatOrDash(stats.total_charge_energy_added, { digits: 1, locale: true })} kWh</strong></div>
+          <div>连贯行程: <strong className="text-zinc-50">{stats.total_drives} 段</strong></div>
+          <div>驾驶时长: <strong className="text-zinc-50">{formatOrDash(stats.total_drive_duration_hours, { digits: 1 })} 小时</strong></div>
+          <div>累计充入: <strong className="text-zinc-50">{formatOrDash(stats.total_charge_energy_added, { digits: 1, locale: true })} kWh</strong></div>
           <div>
             平均电费:{' '}
             <strong className="text-emerald-400">

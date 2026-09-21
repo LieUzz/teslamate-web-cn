@@ -23,7 +23,7 @@ export function DesktopParkingView({ parkings, energy }: DesktopParkingViewProps
       {/* 顶部统计汇总 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/60 p-5 rounded-3xl border border-zinc-800">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
             <Moon className="w-5 h-5 text-purple-400" />
             <span>停车静置与漏电专项大盘</span>
           </h1>
@@ -43,7 +43,7 @@ export function DesktopParkingView({ parkings, energy }: DesktopParkingViewProps
           </div>
           <div className="bg-zinc-900 px-3.5 py-2 rounded-2xl border border-zinc-800">
             <div className="text-zinc-400">所列停车时长</div>
-            <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(listedHours, { digits: 0, unit: '小时', locale: true })}</div>
+            <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(listedHours, { digits: 0, unit: '小时', locale: true })}</div>
           </div>
         </div>
       </div>
@@ -82,7 +82,7 @@ export function DesktopParkingView({ parkings, energy }: DesktopParkingViewProps
                       <span>{p.address ?? DASH}</span>
                     </span>
                   </td>
-                  <td className="py-3.5 text-white font-medium whitespace-nowrap">
+                  <td className="py-3.5 text-zinc-50 font-medium whitespace-nowrap">
                     {formatDuration(p.duration_min)}
                   </td>
                   <td className="py-3.5 whitespace-nowrap font-semibold">

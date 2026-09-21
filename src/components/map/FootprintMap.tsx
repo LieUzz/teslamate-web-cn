@@ -227,7 +227,7 @@ export function FootprintMap({
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
         <button
           onClick={handleResetBounds}
-          className="bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white p-2.5 rounded-2xl border border-zinc-700 shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 text-xs"
+          className="bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-50 p-2.5 rounded-2xl border border-zinc-700 shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 text-xs"
           title="居中适应全景足迹"
         >
           <Maximize2 className="w-4 h-4 text-red-500" />

@@ -28,7 +28,7 @@ export function MobileParkingView({ parkings, energy }: MobileParkingViewProps) 
               <Moon className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white">停车静置与漏电分析</h1>
+              <h1 className="text-base font-bold text-zinc-50">停车静置与漏电分析</h1>
               <p className="text-[11px] text-zinc-400">每次停车期间的续航与电量变化明细</p>
             </div>
           </div>
@@ -48,7 +48,7 @@ export function MobileParkingView({ parkings, energy }: MobileParkingViewProps) 
           </div>
           <div className="bg-zinc-950/60 p-2.5 rounded-2xl border border-zinc-800/60">
             <div className="text-[10px] text-zinc-400">所列停车时长</div>
-            <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(listedHours, { digits: 0, unit: '小时', locale: true })}</div>
+            <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(listedHours, { digits: 0, unit: '小时', locale: true })}</div>
           </div>
         </div>
       </div>
@@ -81,7 +81,7 @@ export function MobileParkingView({ parkings, energy }: MobileParkingViewProps) 
               <div className="mt-2.5 grid grid-cols-3 gap-2 text-center bg-zinc-950/40 p-2 rounded-xl border border-zinc-800/40 text-xs">
                 <div>
                   <div className="text-[10px] text-zinc-400">停放时长</div>
-                  <div className="font-semibold text-white mt-0.5 whitespace-nowrap">
+                  <div className="font-semibold text-zinc-50 mt-0.5 whitespace-nowrap">
                     {formatDuration(p.duration_min)}
                   </div>
                 </div>

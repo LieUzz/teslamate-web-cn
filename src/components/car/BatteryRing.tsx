@@ -34,7 +34,7 @@ export function BatteryRing({ level, rangeKm, isCharging }: BatteryRingProps) {
         <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
           {/* 背景环 */}
           <circle
-            stroke="#27272A"
+            stroke="rgb(var(--zinc-800))"
             fill="transparent"
             strokeWidth={strokeWidth}
             r={normalizedRadius}
@@ -58,7 +58,7 @@ export function BatteryRing({ level, rangeKm, isCharging }: BatteryRingProps) {
         {/* 内部电量数字 */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <div className="flex items-baseline">
-            <span className="text-2xl font-extrabold tracking-tight text-white">{hasLevel ? level : DASH}</span>
+            <span className="text-2xl font-extrabold tracking-tight text-zinc-50">{hasLevel ? level : DASH}</span>
             {hasLevel && <span className="text-xs font-bold text-zinc-400 ml-0.5">%</span>}
           </div>
           {isCharging ? (

@@ -19,7 +19,7 @@ export default async function TemperaturePage() {
       <div className="flex items-center justify-between">
         <Link
           href="/stats"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回统计大盘</span>
@@ -35,7 +35,7 @@ export default async function TemperaturePage() {
               <ThermometerSun className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">气温对能耗与续航影响</h1>
+              <h1 className="text-lg font-bold text-zinc-50">气温对能耗与续航影响</h1>
               <p className="text-xs text-zinc-400 mt-0.5">不同室外气温下的实测平均能耗 (Wh/km)</p>
             </div>
           </div>

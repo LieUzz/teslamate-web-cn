@@ -58,7 +58,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
       <div className="flex items-center justify-between">
         <Link
           href="/drives"
-          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回行程列表</span>
@@ -68,7 +68,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
           {/* 🌟 小巧精致的单次行程分享按钮 */}
           <button
             onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 px-3 py-1.5 rounded-full border border-zinc-700 shadow-md transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-50 bg-zinc-900/90 hover:bg-zinc-800 px-3 py-1.5 rounded-full border border-zinc-700 shadow-md transition-all active:scale-95 cursor-pointer"
             title="生成行程海报并分享"
           >
             <Share2 className="w-3.5 h-3.5 text-blue-400" />
@@ -132,7 +132,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
             <div className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
             <div className="min-w-0">
               <div className="text-zinc-500 text-[10px]">起点位置</div>
-              <div className="text-white font-medium truncate">{drive.start_address ?? DASH}</div>
+              <div className="text-zinc-50 font-medium truncate">{drive.start_address ?? DASH}</div>
             </div>
           </div>
 
@@ -158,7 +158,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
             <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             <div className="min-w-0">
               <div className="text-zinc-500 text-[10px]">终点位置</div>
-              <div className="text-white font-medium truncate">{drive.end_address ?? DASH}</div>
+              <div className="text-zinc-50 font-medium truncate">{drive.end_address ?? DASH}</div>
             </div>
           </div>
 
@@ -180,7 +180,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
       {/* 轨迹地图 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
             <Compass className="w-4 h-4 text-red-500" />
             <span>GPS 行车轨迹地图 (高德已纠偏)</span>
           </h2>
@@ -195,7 +195,7 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
 
       {/* 速度/功率/海拔曲线剖面图 */}
       <div className="space-y-2">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2 px-1">
+        <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2 px-1">
           <Gauge className="w-4 h-4 text-blue-400" />
           <span>动力与车速剖面图</span>
         </h2>

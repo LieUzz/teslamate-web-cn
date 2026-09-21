@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/common/Sidebar';
 import { BottomNav } from '@/components/common/BottomNav';
 import { DeviceSwitchModal } from '@/components/common/DeviceSwitchModal';
 import { RefreshOnFocus } from '@/components/common/RefreshOnFocus';
+import { themeInitScript } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'TeslaMate CN | 现代化全平台车况与轨迹可视化看板',
@@ -22,7 +23,10 @@ export default async function RootLayout({
   const cars = await fetchCars();
 
   return (
-    <html lang="zh-CN" className="dark">
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-red-500/30">
         <Header cars={cars} />
         

@@ -83,13 +83,13 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
                 <Route className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">最近行程记录</h3>
+                <h3 className="text-base font-bold text-zinc-50">最近行程记录</h3>
                 <p className="text-xs text-zinc-400">最新完成的车辆驾驶轨迹与能耗详情</p>
               </div>
             </div>
             <Link
               href="/drives"
-              className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 font-medium bg-zinc-800/60 hover:bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700/50 transition-colors"
+              className="text-xs text-zinc-400 hover:text-zinc-50 flex items-center gap-1 font-medium bg-zinc-800/60 hover:bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700/50 transition-colors"
             >
               <span>查看全部行程</span>
               <ChevronRight className="w-4 h-4" />
@@ -116,11 +116,11 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
                       {formatDateTime(drive.start_date)}
                     </td>
                     <td className="py-3 max-w-xs truncate">
-                      <div className="font-medium text-white truncate">{drive.end_address ?? DASH}</div>
+                      <div className="font-medium text-zinc-50 truncate">{drive.end_address ?? DASH}</div>
                       <div className="text-[11px] text-zinc-500 truncate">从 {drive.start_address ?? DASH}</div>
                     </td>
                     <td className="py-3">
-                      <span className="font-semibold text-white">{formatDistance(drive.distance)}</span>
+                      <span className="font-semibold text-zinc-50">{formatDistance(drive.distance)}</span>
                       <span className="text-zinc-500 ml-1">({formatDuration(drive.duration_min)})</span>
                     </td>
                     <td className="py-3 font-medium text-emerald-400">
@@ -155,13 +155,13 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
                 <Zap className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">充电速览</h3>
+                <h3 className="text-base font-bold text-zinc-50">充电速览</h3>
                 <p className="text-xs text-zinc-400">补能记录与花费</p>
               </div>
             </div>
             <Link
               href="/charges"
-              className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 font-medium"
+              className="text-xs text-zinc-400 hover:text-zinc-50 flex items-center gap-1 font-medium"
             >
               <span>更多</span>
               <ChevronRight className="w-4 h-4" />
@@ -176,7 +176,7 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
                 className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-3 hover:border-zinc-700 transition-all text-xs"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white truncate max-w-[180px]">
+                  <span className="font-semibold text-zinc-50 truncate max-w-[180px]">
                     {charge.address ?? DASH}
                   </span>
                   <span className="font-mono text-emerald-400 font-bold">

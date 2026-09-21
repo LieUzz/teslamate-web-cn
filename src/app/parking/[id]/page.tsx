@@ -30,7 +30,7 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
       <div className="flex items-center justify-between">
         <Link
           href="/parking"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回停车流水</span>
@@ -43,7 +43,7 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-white flex items-center gap-2">
+              <h1 className="text-lg font-bold text-zinc-50 flex items-center gap-2">
                 <Moon className="w-5 h-5 text-purple-400" />
                 <span>停车静置能耗详情</span>
               </h1>
@@ -71,11 +71,11 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">停放时长</div>
-            <div className="text-base font-bold text-white mt-0.5">{formatDuration(parking.duration_min)}</div>
+            <div className="text-base font-bold text-zinc-50 mt-0.5">{formatDuration(parking.duration_min)}</div>
           </div>
           <div className="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/60">
             <div className="text-[11px] text-zinc-400">电量变化</div>
-            <div className="text-base font-bold text-white mt-0.5">
+            <div className="text-base font-bold text-zinc-50 mt-0.5">
               {formatPercent(parking.start_battery_level)} ➔ {formatPercent(parking.end_battery_level)}
             </div>
             <div className="text-[10px] text-zinc-500 mt-0.5 font-mono">
@@ -106,7 +106,7 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
 
       {/* 📈 停车期间电量与气温走势图 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 shadow-xl">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
+        <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2 mb-4">
           <Battery className="w-4 h-4 text-emerald-400" />
           <span>停车期间电量与环境温度走势</span>
         </h2>

@@ -96,7 +96,7 @@ export function FootprintAnalysisClientView({
       <div className="flex items-center justify-between">
         <Link
           href="/stats"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回统计大盘</span>
@@ -113,7 +113,7 @@ export function FootprintAnalysisClientView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold text-white">
+                <h1 className="text-base sm:text-lg font-bold text-zinc-50">
                   行车足迹地图
                 </h1>
               </div>
@@ -150,7 +150,7 @@ export function FootprintAnalysisClientView({
             <div className="text-[11px] text-zinc-400">
               所选时段行驶里程
             </div>
-            <div className="text-base font-bold text-white mt-0.5">
+            <div className="text-base font-bold text-zinc-50 mt-0.5">
               {formatOrDash(totalDistance, { digits: 1 })} <span className="text-[10px] text-zinc-400 font-normal">km</span>
             </div>
             {selectedPeriod === 'all' && stats?.total_distance_km != null ? (
@@ -186,7 +186,7 @@ export function FootprintAnalysisClientView({
       {/* 🗺️ 足迹地图 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-3.5 sm:p-5 shadow-2xl space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
             <Route className="w-4 h-4 text-red-500" />
             <span>行车轨迹网络 ({filteredPaths.length} 段已上图)</span>
           </h2>
@@ -207,7 +207,7 @@ export function FootprintAnalysisClientView({
       {/* 📋 选定时段的行程流水与轨迹卡片 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+          <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
             <Navigation className="w-4 h-4 text-blue-400" />
             <span>选定时段行程流水明细 ({filteredDrives.length} 条)</span>
           </h2>
@@ -253,7 +253,7 @@ export function FootprintAnalysisClientView({
                             ⚡ 合并{drive.merged_count}段
                           </span>
                         )}
-                        <span className="font-bold text-white text-sm">
+                        <span className="font-bold text-zinc-50 text-sm">
                           {formatDistance(drive.distance)}
                         </span>
                       </div>
@@ -297,7 +297,7 @@ export function FootprintAnalysisClientView({
 
       {/* 📍 常驻地点排行榜 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2">
+        <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
           <MapPin className="w-4 h-4 text-blue-400" />
           <span>常去地点驻留统计榜</span>
         </h2>
@@ -315,7 +315,7 @@ export function FootprintAnalysisClientView({
                   {idx + 1}
                 </span>
                 <div className="min-w-0">
-                  <div className="font-bold text-white flex items-center gap-1.5 truncate">
+                  <div className="font-bold text-zinc-50 flex items-center gap-1.5 truncate">
                     {loc.is_home === true && <Home className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
                     <span className="truncate">{loc.name}</span>
                   </div>

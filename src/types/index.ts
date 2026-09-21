@@ -3,6 +3,9 @@
 // 视图模式
 export type ViewMode = 'auto' | 'mobile' | 'desktop';
 
+// 外观主题偏好
+export type ThemePreference = 'system' | 'light' | 'dark';
+
 // 车辆实时状态
 export interface Car {
   id: number;

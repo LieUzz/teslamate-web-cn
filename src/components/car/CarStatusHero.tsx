@@ -47,7 +47,7 @@ export function CarStatusHero({ car }: CarStatusHeroProps) {
       <div className="relative z-10 flex items-center justify-between gap-2 pb-4 border-b border-zinc-800/60">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white truncate">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-zinc-50 truncate">
               {title}
             </h1>
             {badge && badge !== title && (
@@ -99,7 +99,7 @@ export function CarStatusHero({ car }: CarStatusHeroProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">总里程</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
+              <div className="text-sm sm:text-base font-bold text-zinc-50 tracking-tight whitespace-nowrap truncate mt-0.5">
                 {formatOrDash(car.odometer, { digits: 1 })}
                 {car.odometer != null && <span className="text-[10px] font-normal text-zinc-400"> km</span>}
               </div>
@@ -113,7 +113,7 @@ export function CarStatusHero({ car }: CarStatusHeroProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">车内 / 室外温</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
+              <div className="text-sm sm:text-base font-bold text-zinc-50 tracking-tight whitespace-nowrap truncate mt-0.5">
                 {car.inside_temp != null ? `${car.inside_temp}°` : DASH} <span className="text-zinc-500 font-normal">/</span> {car.outside_temp != null ? `${car.outside_temp}°` : DASH}
               </div>
             </div>
@@ -136,7 +136,7 @@ export function CarStatusHero({ car }: CarStatusHeroProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">门锁状态</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
+              <div className="text-sm sm:text-base font-bold text-zinc-50 tracking-tight whitespace-nowrap truncate mt-0.5">
                 {car.is_locked == null ? DASH : car.is_locked ? '已锁定' : '未上锁'}
               </div>
             </div>
@@ -159,7 +159,7 @@ export function CarStatusHero({ car }: CarStatusHeroProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">哨兵模式</div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight whitespace-nowrap truncate mt-0.5">
+              <div className="text-sm sm:text-base font-bold text-zinc-50 tracking-tight whitespace-nowrap truncate mt-0.5">
                 {car.is_sentry_mode == null ? DASH : car.is_sentry_mode ? '已开启' : '已关闭'}
               </div>
             </div>

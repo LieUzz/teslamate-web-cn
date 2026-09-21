@@ -23,7 +23,7 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
       <div className="flex items-center justify-between">
         <Link
           href="/stats"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-50 transition-colors bg-zinc-900/80 px-3 py-1.5 rounded-full border border-zinc-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回统计大盘</span>
@@ -50,7 +50,7 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-white">{report.month} 月度用车报告</h1>
+                  <h1 className="text-lg font-bold text-zinc-50">{report.month} 月度用车报告</h1>
                   <p className="text-xs text-zinc-400 mt-0.5">当月行驶里程与充电开销汇总</p>
                 </div>
               </div>
@@ -71,7 +71,7 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
               <div className="bg-zinc-950/60 p-3.5 rounded-2xl border border-zinc-800/60">
                 <div className="text-[11px] text-zinc-400">行驶里程 / 行程数</div>
-                <div className="text-base font-bold text-white mt-1">
+                <div className="text-base font-bold text-zinc-50 mt-1">
                   {formatOrDash(report.distance_km, { digits: 1, locale: true })} <span className="text-[10px] text-zinc-400 font-normal">km</span>
                 </div>
                 <div className="text-[10px] text-zinc-500 mt-0.5">共 {report.drive_count} 次行程</div>

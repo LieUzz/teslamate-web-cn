@@ -45,7 +45,7 @@ export function StatCard({
       </div>
 
       <div className="mt-2.5 flex items-baseline gap-1 overflow-hidden">
-        <span className="text-xl sm:text-2xl font-bold tracking-tight text-white whitespace-nowrap truncate">
+        <span className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-50 whitespace-nowrap truncate">
           {unknown ? DASH : value}
         </span>
         {unit && !unknown && <span className="text-[11px] font-medium text-zinc-400 shrink-0">{unit}</span>}

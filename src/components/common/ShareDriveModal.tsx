@@ -367,7 +367,7 @@ export function ShareDriveModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div data-theme="dark" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-sm bg-zinc-950 border border-zinc-800 rounded-3xl p-4 shadow-2xl flex flex-col max-h-[94vh] overflow-y-auto">
         {/* 关闭按钮 */}
         <button

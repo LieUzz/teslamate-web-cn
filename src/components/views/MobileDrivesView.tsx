@@ -52,7 +52,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
       {/* 顶部标题与快速时间筛选器 */}
       <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-3.5 shadow-md space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-bold text-zinc-50 flex items-center gap-2">
             <Route className="w-4 h-4 text-blue-500" />
             <span>行程记录与驾驶历史</span>
           </h2>
@@ -86,7 +86,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
         <div className="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
           <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800/50">
             <div className="text-[10px] text-zinc-400">行驶里程</div>
-            <div className="text-sm font-bold text-white mt-0.5">{formatOrDash(totalDist, { digits: 1, unit: 'km' })}</div>
+            <div className="text-sm font-bold text-zinc-50 mt-0.5">{formatOrDash(totalDist, { digits: 1, unit: 'km' })}</div>
           </div>
           <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800/50">
             <div className="text-[10px] text-zinc-400">动力耗电</div>
@@ -130,7 +130,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
                     </span>
                   )}
                 </div>
-                <span className="font-bold text-white text-sm">
+                <span className="font-bold text-zinc-50 text-sm">
                   {formatDistance(drive.distance)}
                 </span>
               </div>
@@ -162,7 +162,7 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
                 {/* 3. 综合能耗 */}
                 <div className="flex flex-col justify-center min-w-0">
                   <div className="text-[10px] text-zinc-400 truncate">综合能耗</div>
-                  <div className="font-semibold text-white mt-0.5 truncate whitespace-nowrap">
+                  <div className="font-semibold text-zinc-50 mt-0.5 truncate whitespace-nowrap">
                     {formatOrDash(drive.efficiency_wh_km, { digits: 0 })} <span className="text-[10px] font-normal text-zinc-400">Wh/km</span>
                   </div>
                   <div className="text-[10px] text-zinc-500 mt-0.5 truncate whitespace-nowrap">

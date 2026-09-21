@@ -40,7 +40,7 @@ export function Header({ cars }: HeaderProps) {
             <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-bold text-white shadow-md shadow-red-600/30">
               <span className="text-base tracking-tighter">T</span>
             </div>
-            <span className="font-bold text-base text-white hidden sm:inline tracking-tight">
+            <span className="font-bold text-base text-zinc-50 hidden sm:inline tracking-tight">
               TeslaMate <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">CN</span>
             </span>
           </Link>
@@ -55,7 +55,7 @@ export function Header({ cars }: HeaderProps) {
                   href={item.href}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-zinc-800 text-white font-semibold'
+                      ? 'bg-zinc-800 text-zinc-50 font-semibold'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                   }`}
                 >
@@ -96,7 +96,7 @@ export function Header({ cars }: HeaderProps) {
             {/* 电池与估算续航 */}
             <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-300 bg-zinc-900/60 px-3 py-1.5 rounded-lg border border-zinc-800">
               <BatteryCharging className="w-4 h-4 text-emerald-400" />
-              <span className="font-semibold text-white">{formatPercent(activeCar.battery_level)}</span>
+              <span className="font-semibold text-zinc-50">{formatPercent(activeCar.battery_level)}</span>
               <span className="text-zinc-500">|</span>
               <span>{formatOrDash(activeCar.range_km, { digits: 0, unit: 'km' })}</span>
             </div>
@@ -104,7 +104,7 @@ export function Header({ cars }: HeaderProps) {
             {/* 刷新状态 */}
             <button
               onClick={() => window.location.reload()}
-              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-zinc-50 rounded-lg hover:bg-zinc-800 transition-colors"
               title="刷新最新数据"
             >
               <RefreshCw className="w-4 h-4" />

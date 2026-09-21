@@ -16,7 +16,7 @@ export function MobileChargesView({ charges }: MobileChargesViewProps) {
   return (
     <div className="space-y-3 pb-24 pt-2 px-3 max-w-lg mx-auto">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <h2 className="text-lg font-bold text-zinc-50 flex items-center gap-2">
           <Zap className="w-5 h-5 text-emerald-500" />
           <span>充电历史记录</span>
         </h2>

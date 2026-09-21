@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactEChartsCore from 'echarts-for-react/lib/core';
 import { echarts } from '@/lib/echarts';
+import { useChartColors } from '@/lib/useChartColors';
 import { ChargePoint } from '@/types';
 import { Empty } from '@/components/common/Empty';
 
@@ -11,6 +12,9 @@ interface ChargeDetailChartsProps {
 }
 
 export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
+  const colors = useChartColors();
+  if (!colors) return null;
+
   if (!points || points.length === 0) {
     return <Empty as="chart" title="该次充电暂无采样数据" />;
   }
@@ -27,13 +31,13 @@ export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#18181b',
-      borderColor: '#27272a',
-      textStyle: { color: '#f4f4f5', fontSize: 12 },
+      backgroundColor: colors.tooltipBg,
+      borderColor: colors.tooltipBorder,
+      textStyle: { color: colors.tooltipText, fontSize: 12 },
     },
     legend: {
       data: ['充电功率 (kW)', '电池 SOC (%)'],
-      textStyle: { color: '#a1a1aa', fontSize: 11 },
+      textStyle: { color: colors.legend, fontSize: 11 },
       top: 0,
     },
     grid: {
@@ -46,25 +50,25 @@ export function ChargeDetailCharts({ points }: ChargeDetailChartsProps) {
     xAxis: {
       type: 'category',
       data: times,
-      axisLine: { lineStyle: { color: '#3f3f46' } },
-      axisLabel: { color: '#71717a', fontSize: 10 },
+      axisLine: { lineStyle: { color: colors.axis } },
+      axisLabel: { color: colors.label, fontSize: 10 },
     },
     yAxis: [
       {
         type: 'value',
         name: '功率 (kW)',
-        nameTextStyle: { color: '#71717a', fontSize: 10 },
-        splitLine: { lineStyle: { color: '#27272a' } },
-        axisLabel: { color: '#71717a', fontSize: 10 },
+        nameTextStyle: { color: colors.label, fontSize: 10 },
+        splitLine: { lineStyle: { color: colors.split } },
+        axisLabel: { color: colors.label, fontSize: 10 },
       },
       {
         type: 'value',
         name: 'SOC (%)',
         min: 0,
         max: 100,
-        nameTextStyle: { color: '#71717a', fontSize: 10 },
+        nameTextStyle: { color: colors.label, fontSize: 10 },
         splitLine: { show: false },
-        axisLabel: { color: '#71717a', fontSize: 10 },
+        axisLabel: { color: colors.label, fontSize: 10 },
       },
     ],
     series: [
