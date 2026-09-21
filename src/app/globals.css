@@ -111,3 +111,212 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--zinc-700));
 }
+
+/* ---------------------------------------------------------------------------
+   首页渲染图动画 (components/home/CarScene.tsx)。纯装饰；只动 transform / opacity。
+   渲染图里车头朝左：路面向右流动，充电粒子流向右端车尾的充电口。
+   --------------------------------------------------------------------------- */
+.scene-road,
+.scene-streaks,
+.scene-particles,
+.scene-radar,
+.scene-sweep,
+.scene-air,
+.scene-zzz {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 行驶：路面虚线 */
+.scene-road {
+  left: 4%;
+  right: 4%;
+  bottom: 9%;
+  height: 3px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+}
+.scene-road-dashes {
+  width: calc(100% + 56px);
+  height: 100%;
+  margin-left: -56px;
+  background: repeating-linear-gradient(to right, rgb(var(--zinc-500)) 0 28px, transparent 28px 56px);
+  animation: scene-road var(--scene-road-duration) linear infinite;
+  animation-play-state: var(--scene-play-state);
+}
+@keyframes scene-road {
+  to { transform: translateX(56px); }
+}
+
+/* 行驶：车尾速度线 */
+.scene-streaks {
+  right: 0;
+  top: 40%;
+  width: 20%;
+  height: 34%;
+}
+.scene-streaks span {
+  position: absolute;
+  left: 0;
+  width: 60%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(to right, rgb(var(--blue-400) / 0.8), transparent);
+  opacity: 0;
+  animation: scene-streak calc(var(--scene-road-duration) * 2.2) linear infinite;
+  animation-play-state: var(--scene-play-state);
+}
+.scene-streaks span:nth-child(1) { top: 10%; }
+.scene-streaks span:nth-child(2) { top: 48%; width: 80%; animation-delay: -0.4s; }
+.scene-streaks span:nth-child(3) { top: 86%; animation-delay: -0.9s; }
+@keyframes scene-streak {
+  0% { transform: translateX(-30%); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateX(90%); opacity: 0; }
+}
+
+/* 行驶：车身轻微起伏 (scale 由 Tailwind 的 scale-110 提供，这里只叠加位移) */
+.scene-bob {
+  animation: scene-bob 0.9s ease-in-out infinite alternate;
+}
+@keyframes scene-bob {
+  from { translate: 0 -1px; }
+  to { translate: 0 1px; }
+}
+
+/* 充电：光波自充电口 (右) 扫向车头 (左)，用渲染图做遮罩 */
+.scene-sweep {
+  inset: 0;
+  -webkit-mask: var(--scene-mask) center / cover no-repeat;
+  mask: var(--scene-mask) center / cover no-repeat;
+  overflow: hidden;
+}
+.scene-sweep::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(to left, transparent, rgb(var(--emerald-400) / 0.75), transparent);
+  animation: scene-sweep calc(var(--scene-charge-duration) * 2) ease-in-out infinite;
+}
+@keyframes scene-sweep {
+  from { transform: translateX(240%); }
+  to { transform: translateX(-110%); }
+}
+
+.scene-breathe {
+  animation: scene-breathe 2.6s ease-in-out infinite alternate;
+}
+@keyframes scene-breathe {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+
+/* 充电：粒子自右上方流入车尾充电口 */
+.scene-particles {
+  right: 3%;
+  top: 22%;
+  width: 16%;
+  height: 30%;
+}
+.scene-particles span {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgb(var(--emerald-400));
+  box-shadow: 0 0 8px rgb(var(--emerald-400));
+  opacity: 0;
+  animation: scene-particle var(--scene-charge-duration) ease-in infinite;
+}
+.scene-particles span:nth-child(2) { animation-delay: calc(var(--scene-charge-duration) * -0.25); }
+.scene-particles span:nth-child(3) { animation-delay: calc(var(--scene-charge-duration) * -0.5); }
+.scene-particles span:nth-child(4) { animation-delay: calc(var(--scene-charge-duration) * -0.75); }
+@keyframes scene-particle {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(-330%, 480%) scale(1); opacity: 0; }
+}
+
+/* 休眠 / 离线 */
+.scene-dimmed {
+  filter: brightness(0.55) saturate(0.6);
+}
+:root[data-theme="light"] .scene-dimmed {
+  filter: opacity(0.55) saturate(0.6);
+}
+.scene-zzz {
+  right: 16%;
+  top: 8%;
+  font-weight: 800;
+  font-size: 14px;
+}
+.scene-zzz span {
+  position: absolute;
+  opacity: 0;
+  animation: scene-zzz 3.6s ease-out infinite;
+}
+.scene-zzz span:nth-child(2) { animation-delay: 1.2s; font-size: 12px; }
+.scene-zzz span:nth-child(3) { animation-delay: 2.4s; font-size: 10px; }
+@keyframes scene-zzz {
+  0% { transform: translate(0, 14px); opacity: 0; }
+  25% { opacity: 0.9; }
+  100% { transform: translate(16px, -18px); opacity: 0; }
+}
+
+/* 哨兵：红色雷达扫描。外层压扁成贴地的椭圆，内层旋转 */
+.scene-radar {
+  left: 50%;
+  top: 62%;
+  width: 100%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scaleY(0.34);
+}
+.scene-radar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, rgb(var(--red-400) / 0.75), transparent 32%, transparent);
+  -webkit-mask-image: radial-gradient(closest-side, #000 70%, transparent);
+  mask-image: radial-gradient(closest-side, #000 70%, transparent);
+  animation: scene-radar 5s linear infinite;
+}
+@keyframes scene-radar {
+  to { transform: rotate(360deg); }
+}
+
+/* 空调：车顶气流 */
+.scene-air {
+  left: 34%;
+  top: 4%;
+  width: 34%;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  animation: scene-air 3.2s ease-in-out infinite alternate;
+}
+.scene-air-cool { stroke: rgb(var(--blue-400)); }
+.scene-air-warm { stroke: rgb(var(--orange-400)); }
+.scene-air-neutral { stroke: rgb(var(--zinc-400)); }
+@keyframes scene-air {
+  from { transform: translateX(-6%); opacity: 0.25; }
+  to { transform: translateX(6%); opacity: 0.75; }
+}
+
+:root[data-theme="light"] .scene-radar,
+:root[data-theme="light"] .scene-sweep {
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene *,
+  .scene *::before {
+    animation: none !important;
+  }
+  .scene-streaks, .scene-particles, .scene-zzz, .scene-sweep { display: none; }
+}

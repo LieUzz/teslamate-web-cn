@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Car } from '@/types';
 import { BatteryRing } from '@/components/car/BatteryRing';
+import { CarScene } from './CarScene';
 import { StateCard } from './StateCard';
 import { DASH, formatOrDash, formatTimeAgo, getCarStateInfo } from '@/lib/formatters';
 import { useNow } from '@/lib/useNow';
@@ -65,18 +66,7 @@ export function CarHero({ car, updateFailed }: CarHeroProps) {
         </div>
       ) : (
         <>
-          <div className="relative mt-1 -mx-2 overflow-hidden">
-            {/* 深色车身在深色主题下需要浅色衬底才看得清 */}
-            <div className="absolute inset-x-6 top-1/4 bottom-[12%] rounded-[50%] bg-zinc-400/25 blur-2xl pointer-events-none" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/cars/${car.id}/image/`}
-              alt={modelLabel ?? ''}
-              className="relative w-full aspect-[2/1] object-cover object-center scale-110 select-none"
-              draggable={false}
-              onError={() => setImageFailed(true)}
-            />
-          </div>
+          <CarScene car={car} alt={modelLabel ?? ''} onImageError={() => setImageFailed(true)} />
 
           <div className="flex items-end justify-between gap-3">
             <div className="flex items-baseline gap-1">

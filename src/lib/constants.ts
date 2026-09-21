@@ -62,3 +62,9 @@ export const CAR_IMAGE_VIEW = 'STUD_3QTR';
 export const CAR_IMAGE_SIZE_PX = 1000;
 export const CAR_IMAGE_TIMEOUT_MS = 10_000;
 export const CAR_IMAGE_BROWSER_MAX_AGE_S = 30 * 24 * 3600;
+
+// 首页渲染图动画 (纯装饰)：把车速 / 充电功率换算成动画周期，并钳制在上下限之间
+export const SCENE_ROAD_SECONDS_AT_100_KMH = 0.5;
+export const SCENE_ROAD_SECONDS_RANGE = [0.3, 3] as const;
+export const SCENE_CHARGE_SECONDS_AT_50_KW = 1.4;
+export const SCENE_CHARGE_SECONDS_RANGE = [0.8, 3.5] as const;

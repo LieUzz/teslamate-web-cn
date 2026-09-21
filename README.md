@@ -18,7 +18,12 @@ anything unknown renders as `--` / "暂无数据".
   and a today / week / month usage summary (`fetchUsageSummary`). While the
   page is visible it polls `GET /api/cars/:id/live/` (5 s driving/charging,
   30 s online, 2 min asleep; constants in `src/lib/constants.ts`). Read-only:
-  no commands are ever sent to the car.
+  no commands are ever sent to the car. The render is animated per state
+  (`components/home/CarScene.tsx`, keyframes in `globals.css`): road + speed
+  lines while driving (speed-linked, paused at 0 km/h), masked green sweep +
+  particles while charging (power-linked), dimmed + Zzz asleep, red radar
+  with sentry on, airflow with climate on. Decorative only; disabled under
+  `prefers-reduced-motion`.
 - Car render: `GET /api/cars/:id/image/` fetches Tesla's configurator image
   once (server side, `static-assets.tesla.cn`) and caches it. Option codes come
   from the verified table in `src/lib/carImage.ts`; the service answers 200
