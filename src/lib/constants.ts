@@ -50,3 +50,15 @@ export const MILESTONE_TARGETS_KM: { target: number; label: string }[] = [
 export const GEOCODER_MIN_INTERVAL_MS = 1100;
 export const GEOCODER_TIMEOUT_MS = 4000;
 export const GEOCODER_CACHE_MAX_ENTRIES = 5000;
+
+// 首页实时车况的轮询间隔：行驶 / 充电时数据几秒一变，停车时变化很慢，休眠时 TeslaMate 不会唤醒车辆
+export const LIVE_POLL_MS_ACTIVE = 5_000;
+export const LIVE_POLL_MS_ONLINE = 30_000;
+export const LIVE_POLL_MS_ASLEEP = 120_000;
+
+// 车辆渲染图：特斯拉官方配置器的图片服务
+export const CAR_IMAGE_ENDPOINT = 'https://static-assets.tesla.cn/configurator/compositor';
+export const CAR_IMAGE_VIEW = 'STUD_3QTR';
+export const CAR_IMAGE_SIZE_PX = 1000;
+export const CAR_IMAGE_TIMEOUT_MS = 10_000;
+export const CAR_IMAGE_BROWSER_MAX_AGE_S = 30 * 24 * 3600;

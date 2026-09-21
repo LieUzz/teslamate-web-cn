@@ -32,17 +32,63 @@ export interface CarMqttState {
   tpms_pressure_rl?: number;
   tpms_pressure_rr?: number;
   shift_state?: string;
+  heading?: number;
+  elevation?: number;
+  // 充电
+  plugged_in?: boolean;
+  charging_state?: string;
+  charger_power?: number;
+  charger_voltage?: number;
+  charger_actual_current?: number;
+  charge_energy_added?: number;
+  time_to_full_charge?: number;
+  charge_limit_soc?: number;
+  charge_port_door_open?: boolean;
+  // 空调 / 乘员
+  climate_keeper_mode?: string;
+  is_preconditioning?: boolean;
+  is_user_present?: boolean;
+  // 软件更新
+  update_available?: boolean;
+  update_version?: string;
+  install_perc?: number;
+  download_perc?: number;
+  // 胎压警告 (车辆自己给出的信号)
+  tpms_soft_warning_fl?: boolean;
+  tpms_soft_warning_fr?: boolean;
+  tpms_soft_warning_rl?: boolean;
+  tpms_soft_warning_rr?: boolean;
+  // 各车门 / 车窗
+  driver_front_door_open?: boolean;
+  driver_rear_door_open?: boolean;
+  passenger_front_door_open?: boolean;
+  passenger_rear_door_open?: boolean;
+  driver_front_window_open?: boolean;
+  driver_rear_window_open?: boolean;
+  passenger_front_window_open?: boolean;
+  passenger_rear_window_open?: boolean;
+  // 最后一次收到该车任意 MQTT 消息的时间 (ISO)
+  received_at?: string;
 }
 
 const BOOLEAN_KEYS = new Set([
   'sentry_mode', 'locked', 'doors_open', 'windows_open', 'frunk_open', 'trunk_open', 'is_climate_on', 'battery_heater',
+  'plugged_in', 'charge_port_door_open', 'is_preconditioning', 'is_user_present', 'update_available',
+  'tpms_soft_warning_fl', 'tpms_soft_warning_fr', 'tpms_soft_warning_rl', 'tpms_soft_warning_rr',
+  'driver_front_door_open', 'driver_rear_door_open', 'passenger_front_door_open', 'passenger_rear_door_open',
+  'driver_front_window_open', 'driver_rear_window_open', 'passenger_front_window_open', 'passenger_rear_window_open',
 ]);
 const NUMBER_KEYS = new Set([
   'battery_level', 'usable_battery_level', 'rated_battery_range_km', 'ideal_battery_range_km', 'est_battery_range_km',
   'odometer', 'speed', 'power', 'inside_temp', 'outside_temp', 'latitude', 'longitude',
   'tpms_pressure_fl', 'tpms_pressure_fr', 'tpms_pressure_rl', 'tpms_pressure_rr',
+  'heading', 'elevation', 'charger_power', 'charger_voltage', 'charger_actual_current', 'charge_energy_added',
+  'time_to_full_charge', 'charge_limit_soc', 'install_perc', 'download_perc',
 ]);
-const STRING_KEYS = new Set(['display_name', 'state', 'since', 'version', 'geofence', 'shift_state']);
+const STRING_KEYS = new Set([
+  'display_name', 'state', 'since', 'version', 'geofence', 'shift_state',
+  'charging_state', 'climate_keeper_mode', 'update_version',
+]);
 
 const carStates = new Map<number, CarMqttState>();
 let client: MqttClient | null = null;
@@ -95,6 +141,7 @@ export function initMqtt() {
       } else if (STRING_KEYS.has(key)) {
         current[key] = valStr;
       }
+      current.received_at = new Date().toISOString();
       carStates.set(carId, current as CarMqttState);
     });
 

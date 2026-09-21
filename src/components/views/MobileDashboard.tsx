@@ -2,52 +2,35 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
-import { CarStatusHero } from '@/components/car/CarStatusHero';
-import { StatCard } from '@/components/common/StatCard';
+import { Car, DriveSummary, ChargeSummary, UsageSummary as UsageSummaryData } from '@/types';
+import { CarHero } from '@/components/home/CarHero';
+import { AlertStrip } from '@/components/home/AlertStrip';
+import { BodyStatus } from '@/components/home/BodyStatus';
+import { UsageSummary } from '@/components/home/UsageSummary';
+import { deriveAlerts } from '@/lib/alerts';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
 import { Empty } from '@/components/common/Empty';
-import { Route, Zap, TrendingUp, ChevronRight } from 'lucide-react';
+import { Route, Zap, ChevronRight } from 'lucide-react';
 
 interface MobileDashboardProps {
   car: Car;
   latestDrive?: DriveSummary;
   latestCharge?: ChargeSummary;
-  stats: LifetimeStats;
+  usage: UsageSummaryData[];
+  updateFailed: boolean;
 }
 
-export function MobileDashboard({ car, latestDrive, latestCharge, stats }: MobileDashboardProps) {
-  // 每公里电费：只用 TeslaMate 有记录的里程，且费用已知时才计算
-  const costPerKm =
-    stats.total_charge_cost != null && stats.logged_distance_km != null && stats.logged_distance_km > 0
-      ? stats.total_charge_cost / stats.logged_distance_km
-      : null;
-
+export function MobileDashboard({ car, latestDrive, latestCharge, usage, updateFailed }: MobileDashboardProps) {
   return (
     <div className="space-y-3.5 pb-20 pt-1 px-2.5 max-w-lg mx-auto">
-      {/* 车辆状态 Hero 卡片 */}
-      <CarStatusHero car={car} />
+      <AlertStrip alerts={deriveAlerts(car)} />
 
-      {/* 快捷指标双列 */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <StatCard
-          title="平均行驶能耗"
-          value={formatOrDash(stats.avg_efficiency_wh_km, { digits: 0 })}
-          unit="Wh/km"
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="充电累计花费"
-          value={formatOrDash(stats.total_charge_cost, { digits: 1, locale: true })}
-          unit="元"
-          icon={Zap}
-          subtext={
-            stats.unpriced_charge_count > 0
-              ? `共 ${stats.total_charges} 次充电 · ${stats.unpriced_charge_count} 次无费用数据`
-              : `共 ${stats.total_charges} 次充电`
-          }
-        />
-      </div>
+      {/* 渲染图 + 电量 + 随状态切换的状态卡 */}
+      <CarHero car={car} updateFailed={updateFailed} />
+
+      <BodyStatus car={car} />
+
+      <UsageSummary summaries={usage} />
 
       {/* 最近一次行程卡片 */}
       {!latestDrive && <Empty title="暂无行程记录" icon={Route} />}
@@ -132,23 +115,9 @@ export function MobileDashboard({ car, latestDrive, latestCharge, stats }: Mobil
         </div>
       )}
 
-      {/* 车辆生命周期总览简报 */}
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-3.5 text-xs text-zinc-400 space-y-2">
-        <div className="flex items-center justify-between font-semibold text-zinc-200">
-          <span>📊 车辆总里程 ({formatOrDash(stats.total_distance_km, { digits: 1, locale: true })} km)</span>
-          <span className="text-[10px] text-zinc-400 font-normal">已记录 {formatOrDash(stats.logged_distance_km, { digits: 1, locale: true })} km</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-          <div>连贯行程: <strong className="text-zinc-50">{stats.total_drives} 段</strong></div>
-          <div>驾驶时长: <strong className="text-zinc-50">{formatOrDash(stats.total_drive_duration_hours, { digits: 1 })} 小时</strong></div>
-          <div>累计充入: <strong className="text-zinc-50">{formatOrDash(stats.total_charge_energy_added, { digits: 1, locale: true })} kWh</strong></div>
-          <div>
-            平均电费:{' '}
-            <strong className="text-emerald-400">
-              {costPerKm != null ? `¥${costPerKm.toFixed(3)} / km` : DASH}
-            </strong>
-          </div>
-        </div>
+      <div className="flex items-center justify-between rounded-2xl bg-zinc-900/40 border border-zinc-800/60 px-3.5 py-3 text-[11px] text-zinc-400">
+        <span>总里程 <strong className="text-zinc-50">{formatOrDash(car.odometer, { digits: 1, unit: 'km', locale: true })}</strong></span>
+        <span>软件版本 <strong className="text-zinc-50">{car.version ?? DASH}</strong></span>
       </div>
     </div>
   );

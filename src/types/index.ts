@@ -44,6 +44,47 @@ export interface Car {
   address: string | null;
   version: string | null;
   battery_heater: boolean | null;
+  // 以下均为 TeslaMate 只通过 MQTT 发布的实时值，没收到就是 null
+  shift_state: string | null;
+  is_user_present: boolean | null;
+  is_preconditioning: boolean | null;
+  // 'off' | 'on' (保持) | 'dog' | 'camp'
+  climate_keeper_mode: string | null;
+  doors: CarOpenings;
+  windows: CarOpenings;
+  tire_warning_fl: boolean | null;
+  tire_warning_fr: boolean | null;
+  tire_warning_rl: boolean | null;
+  tire_warning_rr: boolean | null;
+  charging: CarChargingState;
+  update_available: boolean | null;
+  update_version: string | null;
+  install_percent: number | null;
+  download_percent: number | null;
+  // 最后一次收到实时数据的时间；null = 本次运行还没收到过
+  live_updated_at: string | null;
+}
+
+// 四个车门 / 车窗各自是否开着
+export interface CarOpenings {
+  driver_front: boolean | null;
+  driver_rear: boolean | null;
+  passenger_front: boolean | null;
+  passenger_rear: boolean | null;
+}
+
+export interface CarChargingState {
+  plugged_in: boolean | null;
+  // TeslaMate 原样转发的车辆充电状态：Charging / Complete / Stopped / Disconnected / NoPower / Starting ...
+  charging_state: string | null;
+  charger_power_kw: number | null;
+  charger_voltage: number | null;
+  charger_current: number | null;
+  energy_added_kwh: number | null;
+  // 小时
+  time_to_full_charge_h: number | null;
+  charge_limit_soc: number | null;
+  charge_port_door_open: boolean | null;
 }
 
 // 行程摘要
@@ -228,6 +269,20 @@ export interface MonthlyReport {
   charge_energy_kwh: number;
   charge_cost: number | null;
   // 有多少次充电没有费用数据 (不计入 charge_cost)
+  unpriced_charge_count: number;
+}
+
+// 首页用车小结：自然日 / 自然周 (周一起) / 自然月，按配置时区
+export type UsagePeriod = 'today' | 'week' | 'month';
+export interface UsageSummary {
+  period: UsagePeriod;
+  drive_count: number;
+  distance_km: number | null;
+  drive_kwh: number | null;
+  avg_wh_km: number | null;
+  charge_count: number;
+  charge_energy_kwh: number | null;
+  charge_cost: number | null;
   unpriced_charge_count: number;
 }
 

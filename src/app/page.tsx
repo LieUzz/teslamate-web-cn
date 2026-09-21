@@ -1,15 +1,16 @@
-import { fetchCars, fetchDrives, fetchCharges, fetchLifetimeStats } from '@/lib/queries';
+import { fetchCars, fetchDrives, fetchCharges, fetchLifetimeStats, fetchUsageSummary } from '@/lib/queries';
 import { DashboardSwitcher } from '@/components/views/DashboardSwitcher';
 import { Empty } from '@/components/common/Empty';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [cars, drives, charges, stats] = await Promise.all([
+  const [cars, drives, charges, stats, usage] = await Promise.all([
     fetchCars(),
     fetchDrives(undefined, 10, 0),
     fetchCharges(undefined, 10, 0),
     fetchLifetimeStats(),
+    fetchUsageSummary(),
   ]);
 
   const primaryCar = cars[0];
@@ -29,6 +30,7 @@ export default async function HomePage() {
       drives={drives}
       charges={charges}
       stats={stats}
+      usage={usage}
     />
   );
 }

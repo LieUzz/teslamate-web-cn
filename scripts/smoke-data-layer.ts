@@ -27,6 +27,7 @@ async function main() {
   await run('fetchEnergyBreakdown', () => q.fetchEnergyBreakdown());
   await run('fetchBatteryHealth', () => q.fetchBatteryHealth());
   await run('fetchMonthlyReports', () => q.fetchMonthlyReports());
+  await run('fetchUsageSummary', () => q.fetchUsageSummary());
   await run('fetchTemperatureStats', () => q.fetchTemperatureStats());
   await run('fetchVisitedLocations', () => q.fetchVisitedLocations());
   await run('fetchLifetimeStats', () => q.fetchLifetimeStats());

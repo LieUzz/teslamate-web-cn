@@ -33,6 +33,7 @@ import {
   EnergyBreakdown,
   BatteryHealthInfo,
   MonthlyReport,
+  UsageSummary,
   TemperatureEfficiencyPoint,
   VisitedLocation,
   FootprintDrivePath,
@@ -115,7 +116,8 @@ const placeKeyExpr = (geofenceCol: string, addressCol: string) =>
 // 车辆实时状态
 // ---------------------------------------------------------------------------
 
-export async function fetchCars(): Promise<Car[]> {
+// carId 省略 = 全部车辆
+export async function fetchCars(carId?: number): Promise<Car[]> {
   const pool = getDbPool();
   if (!pool) return [];
 
@@ -155,8 +157,9 @@ export async function fetchCars(): Promise<Car[]> {
       ) ld ON true
       LEFT JOIN geofences lg ON lg.id = ld.end_geofence_id
       LEFT JOIN addresses la ON la.id = ld.end_address_id
+      WHERE ($1::int IS NULL OR c.id = $1)
       ORDER BY c.display_priority, c.id
-    `);
+    `, [carId ?? null]);
 
     return res.rows.map((row): Car => {
       // MQTT 是 TeslaMate 发布的实时值，优先于库里最后一个位置点
@@ -209,12 +212,53 @@ export async function fetchCars(): Promise<Car[]> {
         ),
         version: live.version ?? text(row.version),
         battery_heater: live.battery_heater ?? bool(row.battery_heater),
+        shift_state: live.shift_state ?? null,
+        is_user_present: live.is_user_present ?? null,
+        is_preconditioning: live.is_preconditioning ?? null,
+        climate_keeper_mode: live.climate_keeper_mode ?? null,
+        doors: {
+          driver_front: live.driver_front_door_open ?? null,
+          driver_rear: live.driver_rear_door_open ?? null,
+          passenger_front: live.passenger_front_door_open ?? null,
+          passenger_rear: live.passenger_rear_door_open ?? null,
+        },
+        windows: {
+          driver_front: live.driver_front_window_open ?? null,
+          driver_rear: live.driver_rear_window_open ?? null,
+          passenger_front: live.passenger_front_window_open ?? null,
+          passenger_rear: live.passenger_rear_window_open ?? null,
+        },
+        tire_warning_fl: live.tpms_soft_warning_fl ?? null,
+        tire_warning_fr: live.tpms_soft_warning_fr ?? null,
+        tire_warning_rl: live.tpms_soft_warning_rl ?? null,
+        tire_warning_rr: live.tpms_soft_warning_rr ?? null,
+        charging: {
+          plugged_in: live.plugged_in ?? null,
+          charging_state: live.charging_state ?? null,
+          charger_power_kw: live.charger_power ?? null,
+          charger_voltage: live.charger_voltage ?? null,
+          charger_current: live.charger_actual_current ?? null,
+          energy_added_kwh: live.charge_energy_added ?? null,
+          time_to_full_charge_h: live.time_to_full_charge ?? null,
+          charge_limit_soc: live.charge_limit_soc ?? null,
+          charge_port_door_open: live.charge_port_door_open ?? null,
+        },
+        update_available: live.update_available ?? null,
+        update_version: live.update_version ?? null,
+        install_percent: live.install_perc ?? null,
+        download_percent: live.download_perc ?? null,
+        live_updated_at: live.received_at ?? null,
       };
     });
   } catch (err) {
     console.error('fetchCars error:', err);
     return [];
   }
+}
+
+export async function fetchCar(carId: number): Promise<Car | null> {
+  const cars = await fetchCars(carId);
+  return cars[0] ?? null;
 }
 
 async function getDefaultCarId(pool: Pool): Promise<number | null> {
@@ -931,6 +975,80 @@ export async function fetchBatteryHealth(carId?: number): Promise<BatteryHealthI
   } catch (err) {
     console.error('fetchBatteryHealth error:', err);
     return EMPTY_BATTERY_HEALTH;
+  }
+}
+
+/**
+ * 首页用车小结：今天 / 本周 / 本月，周期起点按配置时区计算 (库里存的是 UTC)。口径与月度报告一致。
+ */
+export async function fetchUsageSummary(carId?: number): Promise<UsageSummary[]> {
+  const pool = getDbPool();
+  if (!pool) return [];
+
+  try {
+    const basis = await getRangeBasis(pool);
+    const touJoin = await getTouCostJoin(pool);
+    const { electricityPriceCnyPerKwh, timeZone } = getConfig();
+    const res = await pool.query(
+      `
+      WITH bounds AS (
+        SELECT p.period, p.ord, date_trunc(p.unit, now() AT TIME ZONE $2) AT TIME ZONE $2 AS period_start
+        FROM (VALUES ('today', 'day', 1), ('week', 'week', 2), ('month', 'month', 3)) AS p(period, unit, ord)
+      ),
+      drive_periods AS (
+        SELECT b.period,
+               COUNT(*) AS drive_count,
+               SUM(d.distance) AS distance_km,
+               SUM((d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency) AS drive_kwh,
+               SUM(d.distance) FILTER (WHERE (d.start_${basis}_range_km - d.end_${basis}_range_km) * c.efficiency IS NOT NULL) AS kwh_distance
+        FROM bounds b
+        JOIN drives d ON (d.start_date AT TIME ZONE 'UTC') >= b.period_start
+        JOIN cars c ON c.id = d.car_id
+        WHERE d.end_date IS NOT NULL AND ($1::int IS NULL OR d.car_id = $1)
+        GROUP BY 1
+      ),
+      charge_periods AS (
+        SELECT b.period,
+               COUNT(*) AS charge_count,
+               SUM(cp.charge_energy_added) AS charge_energy_kwh,
+               SUM(${chargeCostExpr('$3')}) AS charge_cost,
+               COUNT(*) FILTER (WHERE ${chargeCostExpr('$3')} IS NULL) AS unpriced_count
+        FROM bounds b
+        JOIN charging_processes cp ON (cp.start_date AT TIME ZONE 'UTC') >= b.period_start
+        ${touJoin}
+        WHERE cp.end_date IS NOT NULL AND ($1::int IS NULL OR cp.car_id = $1)
+        GROUP BY 1
+      )
+      SELECT b.period,
+             COALESCE(dp.drive_count, 0) AS drive_count, dp.distance_km, dp.drive_kwh, dp.kwh_distance,
+             COALESCE(cp.charge_count, 0) AS charge_count, cp.charge_energy_kwh, cp.charge_cost,
+             COALESCE(cp.unpriced_count, 0) AS unpriced_count
+      FROM bounds b
+      LEFT JOIN drive_periods dp ON dp.period = b.period
+      LEFT JOIN charge_periods cp ON cp.period = b.period
+      ORDER BY b.ord
+      `,
+      [carId ?? null, timeZone, electricityPriceCnyPerKwh]
+    );
+
+    return res.rows.map((row): UsageSummary => {
+      const driveKwh = num(row.drive_kwh);
+      const kwhDistance = num(row.kwh_distance);
+      return {
+        period: row.period,
+        drive_count: Number(row.drive_count),
+        distance_km: round(num(row.distance_km), 1),
+        drive_kwh: round(driveKwh, 1),
+        avg_wh_km: driveKwh != null && kwhDistance != null && kwhDistance > 0 ? Math.round((driveKwh * 1000) / kwhDistance) : null,
+        charge_count: Number(row.charge_count),
+        charge_energy_kwh: round(num(row.charge_energy_kwh), 1),
+        charge_cost: round(num(row.charge_cost), 2),
+        unpriced_charge_count: Number(row.unpriced_count),
+      };
+    });
+  } catch (err) {
+    console.error('fetchUsageSummary error:', err);
+    return [];
   }
 }
 

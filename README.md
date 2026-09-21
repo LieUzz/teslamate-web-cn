@@ -12,6 +12,18 @@ anything unknown renders as `--` / "暂无数据".
 - Charge cost: TOU table of teslamate-chinese-dashboards > TeslaMate's
   `charging_processes.cost` (geofence pricing) > configured price (marked 估算).
 - The petrol-car comparison module ("省了多少油钱") has been removed.
+- Home page: alert strip (`src/lib/alerts.ts`, rules asserted by
+  `scripts/smoke-alerts.ts`), car render + state card that changes with the
+  car state (parked / charging / driving / asleep / updating), body status,
+  and a today / week / month usage summary (`fetchUsageSummary`). While the
+  page is visible it polls `GET /api/cars/:id/live/` (5 s driving/charging,
+  30 s online, 2 min asleep; constants in `src/lib/constants.ts`). Read-only:
+  no commands are ever sent to the car.
+- Car render: `GET /api/cars/:id/image/` fetches Tesla's configurator image
+  once (server side, `static-assets.tesla.cn`) and caches it. Option codes come
+  from the verified table in `src/lib/carImage.ts`; the service answers 200
+  even for unknown codes, so only add combinations you have looked at. No match
+  = no image, the hero falls back to the battery ring.
 - Themes: dark / light / follow system, chosen in the floating settings
   button (外观) and stored in `localStorage`. Neutral colours are the `zinc-*`
   classes, which resolve to CSS variables in `src/app/globals.css`

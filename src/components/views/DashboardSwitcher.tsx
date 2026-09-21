@@ -4,16 +4,20 @@ import React from 'react';
 import { useViewModeStore } from '@/store/useViewModeStore';
 import { MobileDashboard } from './MobileDashboard';
 import { DesktopDashboard } from './DesktopDashboard';
-import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
+import { Car, DriveSummary, ChargeSummary, LifetimeStats, UsageSummary } from '@/types';
+import { useLiveCar } from '@/lib/useLiveCar';
 
 interface DashboardSwitcherProps {
   car: Car;
   drives: DriveSummary[];
   charges: ChargeSummary[];
   stats: LifetimeStats;
+  usage: UsageSummary[];
 }
 
-export function DashboardSwitcher({ car, drives, charges, stats }: DashboardSwitcherProps) {
+export function DashboardSwitcher({ car: initialCar, drives, charges, stats, usage }: DashboardSwitcherProps) {
+  // 页面开着时车况自动更新；其余数据仍随整页刷新
+  const { car, failed: updateFailed } = useLiveCar(initialCar);
   const { isMobileLayout, mode } = useViewModeStore();
 
   // 当为 mobile 模式或屏幕宽度小于 lg 且未强制 desktop 时，显示移动端流式卡片
@@ -25,7 +29,8 @@ export function DashboardSwitcher({ car, drives, charges, stats }: DashboardSwit
         car={car}
         latestDrive={drives[0]}
         latestCharge={charges[0]}
-        stats={stats}
+        usage={usage}
+        updateFailed={updateFailed}
       />
     );
   }
@@ -36,6 +41,8 @@ export function DashboardSwitcher({ car, drives, charges, stats }: DashboardSwit
       drives={drives}
       charges={charges}
       stats={stats}
+      usage={usage}
+      updateFailed={updateFailed}
     />
   );
 }

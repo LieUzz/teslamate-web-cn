@@ -2,8 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Car, DriveSummary, ChargeSummary, LifetimeStats } from '@/types';
-import { CarStatusHero } from '@/components/car/CarStatusHero';
+import { Car, DriveSummary, ChargeSummary, LifetimeStats, UsageSummary as UsageSummaryData } from '@/types';
+import { CarHero } from '@/components/home/CarHero';
+import { AlertStrip } from '@/components/home/AlertStrip';
+import { BodyStatus } from '@/components/home/BodyStatus';
+import { UsageSummary } from '@/components/home/UsageSummary';
+import { deriveAlerts } from '@/lib/alerts';
 import { StatCard } from '@/components/common/StatCard';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatCurrency, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
 import { Empty } from '@/components/common/Empty';
@@ -21,9 +25,11 @@ interface DesktopDashboardProps {
   drives: DriveSummary[];
   charges: ChargeSummary[];
   stats: LifetimeStats;
+  usage: UsageSummaryData[];
+  updateFailed: boolean;
 }
 
-export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboardProps) {
+export function DesktopDashboard({ car, drives, charges, stats, usage, updateFailed }: DesktopDashboardProps) {
   // 每公里电费：只用 TeslaMate 有记录的里程，且费用已知时才计算
   const costPerKm =
     stats.total_charge_cost != null && stats.logged_distance_km != null && stats.logged_distance_km > 0
@@ -34,8 +40,16 @@ export function DesktopDashboard({ car, drives, charges, stats }: DesktopDashboa
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* 顶部车辆核心全景卡片 */}
-      <CarStatusHero car={car} />
+      <AlertStrip alerts={deriveAlerts(car)} />
+
+      {/* 左：渲染图 + 状态卡；右：车身一览 + 用车小结 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <CarHero car={car} updateFailed={updateFailed} />
+        <div className="space-y-6">
+          <BodyStatus car={car} />
+          <UsageSummary summaries={usage} />
+        </div>
+      </div>
 
       {/* 四大核心汇总指标 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
