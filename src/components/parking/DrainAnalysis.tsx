@@ -20,7 +20,9 @@ const BAND_META: Record<ParkingDrainBand['key'], { label: string; range: string;
   high: { label: '偏高', range: `> ${PARKING_DRAIN_POWER_BANDS_W.high_from} W`, bar: 'bg-red-500', text: 'text-red-400' },
 };
 
-const EFFICIENCY_HINT = 'TeslaMate 需要一次结束电量 ≤ 95% 且超过 10 分钟的充电才能推算能耗系数';
+// TeslaMate 的推算规则 (lib/teslamate/log.ex recalculate_efficiency)：结束电量 ≤ 95%、时长 > 10 分钟的充电，
+// 且至少 2 次算出相同的系数 (保留 2 位小数) 才采用
+const EFFICIENCY_HINT = 'TeslaMate 需要至少两次结束电量 ≤ 95%、超过 10 分钟且算出相同系数的充电才能推算能耗系数';
 
 function CardHeader({ icon: Icon, tone, title, hint, right }: { icon: typeof BarChart3; tone: string; title: string; hint?: string; right?: React.ReactNode }) {
   return (
