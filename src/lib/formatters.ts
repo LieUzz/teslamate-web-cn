@@ -128,24 +128,18 @@ export function formatTimeAgo(dateStr: string | null | undefined): string {
   }
 }
 
+// 界面只区分 行驶 / 充电 / 停车：在线、离线、休眠、准备睡眠、升级中对用户来说都是"车停着"
 export function getCarStateInfo(state: string | null | undefined) {
   switch (state) {
     case 'driving':
       return { text: '行驶中', color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/30' };
     case 'charging':
       return { text: '充电中', color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' };
-    case 'asleep':
-      return { text: '睡眠中', color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30' };
-    case 'online':
-      return { text: '已唤醒', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30' };
-    case 'suspended':
-      return { text: '准备睡眠', color: 'text-zinc-400', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
-    case 'offline':
-      return { text: '离线', color: 'text-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
-    case 'updating':
-      return { text: '升级中', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' };
-    default:
+    case null:
+    case undefined:
       // 没有状态数据不等于离线
       return { text: '状态未知', color: 'text-zinc-500', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
+    default:
+      return { text: '停车中', color: 'text-zinc-300', bg: 'bg-zinc-500/10', border: 'border-zinc-500/30' };
   }
 }

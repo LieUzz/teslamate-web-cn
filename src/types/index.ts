@@ -25,6 +25,7 @@ export interface Car {
   speed: number | null;
   power: number | null;
   state: 'driving' | 'charging' | 'asleep' | 'online' | 'offline' | 'suspended' | 'updating' | string | null;
+  // 当前状态的起点：行驶 = 本段行程开始，充电 = 本次充电开始，停车 (含在线 / 离线 / 休眠 / 升级) = 最后一次行程结束
   since: string | null;
   inside_temp: number | null;
   outside_temp: number | null;

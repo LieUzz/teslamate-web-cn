@@ -52,7 +52,6 @@ export function TimelineClientView({ data }: { data: DayTimelineData }) {
           <ChevronRight className="w-4 h-4" />
         </DayLink>
       </div>
-      <p className="text-center text-[10px] text-zinc-500">左右箭头跳到前后最近一个有行程或充电的日期</p>
 
       <DayTimeline data={data} variant="day" />
     </div>

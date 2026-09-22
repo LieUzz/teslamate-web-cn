@@ -52,7 +52,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-zinc-50">综合能效与统计大盘</h1>
-              <p className="text-xs text-zinc-400 mt-0.5">基于 TeslaMate 有记录数据的电量去向、行车与停车损耗分析</p>
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -76,7 +75,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
           </div>
           <div className="mt-3">
             <div className="text-xs font-bold text-zinc-50">电池健康度</div>
-            <div className="text-[11px] text-emerald-400 mt-0.5 font-medium">容量推导 · 充电构成</div>
           </div>
         </Link>
 
@@ -93,7 +91,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
           </div>
           <div className="mt-3">
             <div className="text-xs font-bold text-zinc-50">行车足迹热力</div>
-            <div className="text-[11px] text-blue-400 mt-0.5 font-medium">行驶轨迹 · 常去地点</div>
           </div>
         </Link>
 
@@ -110,7 +107,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
           </div>
           <div className="mt-3">
             <div className="text-xs font-bold text-zinc-50">月度能耗账单</div>
-            <div className="text-[11px] text-purple-400 mt-0.5 font-medium">逐月里程 · 用车开销</div>
           </div>
         </Link>
 
@@ -127,7 +123,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
           </div>
           <div className="mt-3">
             <div className="text-xs font-bold text-zinc-50">气温与能耗关联</div>
-            <div className="text-[11px] text-amber-400 mt-0.5 font-medium">不同气温 · 能效分布</div>
           </div>
         </Link>
       </div>
@@ -139,7 +134,6 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
             <BatteryCharging className="w-4 h-4 text-emerald-400" />
             <span>电量流向与消耗对比</span>
           </h2>
-          <span className="text-xs text-zinc-400">累计充入 {formatOrDash(energy.total_energy_added_kwh, { digits: 1, unit: 'kWh' })}</span>
         </div>
 
         {/* 双色对比进度条 */}
@@ -158,7 +152,7 @@ export function StatsClientView({ stats, energy, records, milestones }: StatsCli
               />
             </div>
           ) : (
-            <Empty as="chart" title="暂无数据" hint="还没有足够的行车与停车记录来拆分电量去向" />
+            <Empty as="chart" title="暂无数据" />
           )}
           <div className="flex items-center justify-between text-xs font-medium">
             <span className="text-blue-400 flex items-center gap-1">

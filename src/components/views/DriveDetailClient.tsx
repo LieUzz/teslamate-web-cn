@@ -7,9 +7,6 @@ import { DriveMap } from '@/components/map/DriveMap';
 import { DriveProfileChart } from '@/components/charts/DriveProfileChart';
 import { StatCard } from '@/components/common/StatCard';
 import {
-  formatDuration,
-  formatEnergy,
-  formatSpeed,
   formatOrDash,
   formatPercent,
   DASH,
@@ -27,7 +24,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { ShareDriveModal } from '@/components/common/ShareDriveModal';
-import { batteryDelta } from './helpers';
 
 interface DriveDetailClientProps {
   drive: DriveDetail;
@@ -39,7 +35,6 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
   const [showShareModal, setShowShareModal] = useState(false);
 
   const hasPositions = drive.positions != null && drive.positions.length > 0;
-  const batteryDiff = batteryDelta(drive.start_battery_level, drive.end_battery_level);
 
   const startPos = hasPositions ? drive.positions[0] : null;
   const endPos = hasPositions ? drive.positions[drive.positions.length - 1] : null;
@@ -77,21 +72,6 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
         </div>
       </div>
 
-      {/* ⚡ 智能合并行程提示条 */}
-      {drive.is_merged && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-amber-300">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[11px]">
-              ⚡ 智能合并
-            </span>
-            <span>本次行程由 {drive.merged_count ?? DASH} 段相邻行程合并而成，轨迹已拼接</span>
-          </div>
-          {drive.stopover_duration_min != null && drive.stopover_duration_min > 0 ? (
-            <span className="text-zinc-400 text-[11px]">中途停留共 {Math.round(drive.stopover_duration_min)} 分钟</span>
-          ) : null}
-        </div>
-      )}
-
       {/* 4 核心统计指标 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <StatCard
@@ -99,7 +79,6 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
           value={formatOrDash(drive.distance, { digits: 1 })}
           unit="km"
           icon={Route}
-          subtext={`耗时 ${formatDuration(drive.duration_min)}`}
           highlight
         />
         <StatCard
@@ -107,20 +86,17 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
           value={formatOrDash(drive.efficiency_wh_km, { digits: 0 })}
           unit="Wh/km"
           icon={TrendingUp}
-          subtext={`共消耗 ${formatEnergy(drive.consumption_kwh)}`}
         />
         <StatCard
           title="平均车速"
           value={formatOrDash(drive.speed_avg, { digits: 0 })}
           unit="km/h"
           icon={Gauge}
-          subtext={`最高时速 ${formatSpeed(drive.speed_max)}`}
         />
         <StatCard
           title="电量变化"
           value={`${formatPercent(drive.start_battery_level)} → ${formatPercent(drive.end_battery_level)}`}
           icon={Zap}
-          subtext={`变化 ${batteryDiff != null ? `${batteryDiff > 0 ? '+' : ''}${batteryDiff}%` : DASH}`}
         />
       </div>
 
@@ -182,14 +158,13 @@ export function DriveDetailClient({ drive, carName, carModel }: DriveDetailClien
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
             <Compass className="w-4 h-4 text-red-500" />
-            <span>GPS 行车轨迹地图 (高德已纠偏)</span>
+            <span>GPS 行车轨迹地图</span>
           </h2>
-          {hasPositions && <span className="text-xs text-zinc-500">{drive.positions.length} 个采集点</span>}
         </div>
         {hasPositions ? (
           <DriveMap positions={drive.positions} height="400px" />
         ) : (
-          <Empty title="暂无轨迹数据" hint="TeslaMate 没有记录这段行程的定位点" icon={Compass} />
+          <Empty title="暂无轨迹数据" icon={Compass} />
         )}
       </div>
 

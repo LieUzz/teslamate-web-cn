@@ -31,7 +31,6 @@ export function MobileParkingView({ parkings, energy, analysis }: MobileParkingV
             </div>
             <div>
               <h1 className="text-base font-bold text-zinc-50">停车静置与漏电分析</h1>
-              <p className="text-[11px] text-zinc-400">每次停车期间的续航与电量变化明细</p>
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">

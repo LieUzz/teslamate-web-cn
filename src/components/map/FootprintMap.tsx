@@ -212,7 +212,7 @@ export function FootprintMap({
   };
 
   if (!hasContent) {
-    return <Empty title="该时间范围内暂无行车轨迹" hint="没有可上图的行程或带坐标的常去地点" />;
+    return <Empty title="该时间范围内暂无行车轨迹" />;
   }
 
   return (

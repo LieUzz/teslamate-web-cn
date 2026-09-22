@@ -14,12 +14,11 @@ import {
   ThermometerSnowflake,
   ThermometerSun,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { DrivingRecordItem, DrivingRecords, DrivingRecordsByPeriod, RecordPeriod } from '@/types';
 import { DASH, formatDateTime } from '@/lib/formatters';
-import { MERGE_MAX_GAP_MINUTES, RECORD_WINDOW_DAYS } from '@/lib/constants';
+import { RECORD_WINDOW_DAYS } from '@/lib/constants';
 import { Empty } from '@/components/common/Empty';
 
 type RecordTileKey = Exclude<keyof DrivingRecords, 'period' | 'drive_count' | 'extreme_temp'>;
@@ -51,7 +50,6 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
   ];
 
   const currentRecords = records[activePeriod];
-  const activeLabel = periodOptions.find((o) => o.key === activePeriod)?.label ?? '';
 
   return (
     <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-5 md:p-6 backdrop-blur-xl shadow-xl space-y-6">
@@ -62,16 +60,7 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
             <Trophy className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-zinc-100">驾驶生涯极值榜</h2>
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
-                <Sparkles className="w-3 h-3" />
-                智能合并行程
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              {MERGE_MAX_GAP_MINUTES} 分钟内的临时停车已自动合并为连贯行程并统计极值
-            </p>
+            <h2 className="text-lg font-bold text-zinc-100">驾驶生涯极值榜</h2>
           </div>
         </div>
 
@@ -95,10 +84,7 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
 
       {/* 极值指标网格：该周期没有行程时显示空状态，绝不回退到其他周期 */}
       {currentRecords.drive_count === 0 ? (
-        <Empty
-          title="该时间范围内暂无行程"
-          hint={activePeriod === 'all' ? 'TeslaMate 尚未记录到任何行程' : `「${activeLabel}」内没有行程记录，可切换其他时间范围`}
-        />
+        <Empty title="该时间范围内暂无行程" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {RECORD_TILES.map((tile) => {
@@ -144,7 +130,6 @@ export function DrivingRecordsCard({ records }: DrivingRecordsCardProps) {
               />
             </div>
 
-            <div className="text-[11px] text-zinc-400 truncate">按行程平均车外温度统计</div>
           </div>
         </div>
       )}

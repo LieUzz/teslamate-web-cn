@@ -20,7 +20,6 @@ export function MobileChargesView({ charges }: MobileChargesViewProps) {
           <Zap className="w-5 h-5 text-emerald-500" />
           <span>充电历史记录</span>
         </h2>
-        <span className="text-xs text-zinc-400">共 {charges.length} 次充电记录</span>
       </div>
 
       {charges.length === 0 && <Empty title="暂无充电记录" icon={Zap} />}
@@ -56,9 +55,6 @@ export function MobileChargesView({ charges }: MobileChargesViewProps) {
               <div className="text-right">
                 <div className="text-base font-bold text-amber-400">
                   {formatCurrency(charge.cost)}
-                  {charge.cost != null && charge.cost_source === 'configured' && (
-                    <span className="text-[10px] text-zinc-500 font-normal ml-1">估算</span>
-                  )}
                 </div>
                 <div className="text-xs text-zinc-400 mt-0.5">
                   {formatPercent(charge.start_battery_level)} → {formatPercent(charge.end_battery_level)}

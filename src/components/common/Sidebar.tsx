@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Route, Zap, BarChart3, Shield, MapPin } from 'lucide-react';
+import { LayoutDashboard, Route, Zap, BarChart3, MapPin } from 'lucide-react';
 
 const navItems = [
   { name: '总览看板', href: '/', icon: LayoutDashboard },
@@ -43,17 +43,6 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="mt-auto pt-4 border-t border-zinc-800/80">
-        <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
-          <div className="flex items-center gap-2 text-xs font-medium text-zinc-300">
-            <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span>只读安全模式</span>
-          </div>
-          <p className="text-[11px] text-zinc-500 mt-1">
-            直连 TeslaMate 数据库，零写入，不干扰原版运行。
-          </p>
-        </div>
-      </div>
     </aside>
   );
 }

@@ -5,7 +5,6 @@ import { Empty } from '@/components/common/Empty';
 
 interface BatteryHealthChartsProps {
   health: BatteryHealthInfo;
-  currentKm: number | null;
 }
 
 interface CompareRow {
@@ -19,7 +18,7 @@ interface CompareRow {
 }
 
 // 没有历史容量序列，因此不画衰减曲线；只把"当前值"与"基准值"并排对比
-export function BatteryHealthCharts({ health, currentKm }: BatteryHealthChartsProps) {
+export function BatteryHealthCharts({ health }: BatteryHealthChartsProps) {
   const rows: CompareRow[] = [];
 
   if (health.estimated_full_range_km != null && health.original_full_range_km != null) {
@@ -28,9 +27,9 @@ export function BatteryHealthCharts({ health, currentKm }: BatteryHealthChartsPr
       unit: 'km',
       digits: 0,
       current: health.estimated_full_range_km,
-      currentLabel: '当前估算',
+      currentLabel: '当前',
       reference: health.original_full_range_km,
-      referenceLabel: '出厂值 (BATTERY_ORIGINAL_RANGE_KM)',
+      referenceLabel: '出厂值',
     });
   }
 
@@ -40,19 +39,15 @@ export function BatteryHealthCharts({ health, currentKm }: BatteryHealthChartsPr
       unit: 'kWh',
       digits: 1,
       current: health.current_capacity_kwh,
-      currentLabel: '当前推算',
+      currentLabel: '当前',
       reference: health.max_observed_capacity_kwh,
-      referenceLabel: '有记录以来的最大容量',
+      referenceLabel: '记录最大值',
     });
   }
 
   if (rows.length === 0) {
     return (
-      <Empty
-        as="chart"
-        title="充电记录不足，暂无法评估电池健康"
-        hint={`已有 ${health.sample_count} 次可用充电记录`}
-      />
+      <Empty as="chart" title="暂无数据" />
     );
   }
 
@@ -93,11 +88,6 @@ export function BatteryHealthCharts({ health, currentKm }: BatteryHealthChartsPr
         );
       })}
 
-      <p className="text-[11px] text-zinc-500">
-        基于 {health.sample_count} 次可用充电记录推算
-        {currentKm != null ? ` · 当前总里程 ${formatOrDash(currentKm, { digits: 0, locale: true, unit: 'km' })}` : ''}
-        {health.original_full_range_km == null ? ' · 未配置出厂续航 (BATTERY_ORIGINAL_RANGE_KM)，无法与出厂值对比' : ''}
-      </p>
     </div>
   );
 }

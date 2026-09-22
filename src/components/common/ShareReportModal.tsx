@@ -97,7 +97,6 @@ export function ShareReportModal({
   const headerTitle = carName ?? carModel ?? '出行月报';
   const headerSubtitle = carName != null ? carModel : null;
 
-  const unpricedNote = report.unpriced_charge_count > 0 ? `${report.unpriced_charge_count} 次充电无费用数据，未计入` : null;
   // 每公里电费：没有里程、没有电费、或电费不完整时都算不出来
   const costPerKm =
     report.charge_cost != null && report.distance_km > 0 && report.unpriced_charge_count === 0
@@ -112,13 +111,12 @@ export function ShareReportModal({
     // 未知的指标不写进战报
     const lines = [
       `🚗【${carName != null ? `${carName} · ` : ''}${report.month} 出行月报】`,
-      `📍 行驶里程: ${distanceText} (${report.drive_count} 次行程)`,
-      `⚡ 充入电量: ${chargeEnergyText} (${report.charge_count} 次充电)`,
+      `📍 行驶里程: ${distanceText}`,
+      `⚡ 充入电量: ${chargeEnergyText}`,
       report.charge_cost != null
-        ? `💰 充电费用: ${formatCurrency(report.charge_cost)}${costPerKm != null ? ` (折合 ¥${costPerKm.toFixed(3)}/km)` : ''}${unpricedNote ? ` (${unpricedNote})` : ''}`
+        ? `💰 充电费用: ${formatCurrency(report.charge_cost)}`
         : null,
       report.avg_wh_km != null ? `🌿 平均能耗: ${Math.round(report.avg_wh_km)} Wh/km` : null,
-      '✨ 由 TeslaMate CN 生成',
     ].filter((v): v is string => v != null);
     const text = lines.join('\n');
 
@@ -196,20 +194,17 @@ export function ShareReportModal({
                 <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
                   <div className="text-[10px] text-zinc-400">总行驶里程</div>
                   <div className="text-sm font-bold text-white mt-0.5">{distanceText}</div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5">{report.drive_count} 次出行</div>
                 </div>
 
                 <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
                   <div className="text-[10px] text-zinc-400">充入电量</div>
                   <div className="text-sm font-bold text-white mt-0.5">{chargeEnergyText}</div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5">{report.charge_count} 次充电</div>
                 </div>
 
                 {report.charge_cost != null && (
                   <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
                     <div className="text-[10px] text-zinc-400">充电费用</div>
                     <div className="text-sm font-bold text-amber-400 mt-0.5">{formatCurrency(report.charge_cost)}</div>
-                    {unpricedNote && <div className="text-[9px] text-zinc-500 mt-0.5">{unpricedNote}</div>}
                   </div>
                 )}
 
@@ -224,16 +219,10 @@ export function ShareReportModal({
                   <div className="bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800/80">
                     <div className="text-[10px] text-zinc-400">折合每公里电费</div>
                     <div className="text-sm font-bold text-blue-400 mt-0.5">¥{costPerKm.toFixed(3)}</div>
-                    <div className="text-[9px] text-zinc-500 mt-0.5">本月充电费用 ÷ 本月里程</div>
                   </div>
                 )}
               </div>
 
-              {/* 底部小签名 */}
-              <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800/60">
-                <span className="font-mono">TeslaMate CN</span>
-                <span>数据来自 TeslaMate 记录</span>
-              </div>
             </div>
           )}
 

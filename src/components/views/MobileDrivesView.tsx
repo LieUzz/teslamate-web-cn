@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
 import { formatDistance, formatDuration, formatEnergy, formatDateTime, formatOrDash, formatPercent, formatSpeed, DASH } from '@/lib/formatters';
-import { MERGE_MAX_GAP_MINUTES } from '@/lib/constants';
 import { Empty } from '@/components/common/Empty';
 import { Route, ChevronRight, Calendar } from 'lucide-react';
 import { sumKnown, batteryDelta } from './helpers';
@@ -61,9 +60,6 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
           </span>
         </div>
 
-        <p className="text-[10px] text-zinc-500">
-          间隔不超过 {MERGE_MAX_GAP_MINUTES} 分钟且首尾地点一致的相邻行程已自动合并
-        </p>
 
         {/* 筛选 Tabs */}
         <div className="flex items-center justify-between p-1 bg-zinc-950/80 rounded-xl border border-zinc-800 text-xs">
@@ -104,7 +100,6 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
         <Empty
           icon={Calendar}
           title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行程'}
-          hint={drives.length === 0 ? undefined : '请选择其他时间段'}
         />
       )}
 
@@ -124,11 +119,6 @@ export function MobileDrivesView({ drives }: MobileDrivesViewProps) {
                   <span className="font-mono text-zinc-400">
                     {formatDateTime(drive.start_date)}
                   </span>
-                  {drive.is_merged && (
-                    <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-medium">
-                      ⚡ 合并{drive.merged_count}段
-                    </span>
-                  )}
                 </div>
                 <span className="font-bold text-zinc-50 text-sm">
                   {formatDistance(drive.distance)}

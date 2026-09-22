@@ -32,7 +32,7 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
       </div>
 
       {/* 月度报告卡片列表 */}
-      {reports.length === 0 && <Empty title="暂无月度报告" hint="还没有任何月份的行程或充电记录" icon={Calendar} />}
+      {reports.length === 0 && <Empty title="暂无月度报告" icon={Calendar} />}
 
       <div className="space-y-4">
         {reports.map((report) => {
@@ -51,7 +51,6 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-zinc-50">{report.month} 月度用车报告</h1>
-                  <p className="text-xs text-zinc-400 mt-0.5">当月行驶里程与充电开销汇总</p>
                 </div>
               </div>
 
@@ -74,7 +73,6 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
                 <div className="text-base font-bold text-zinc-50 mt-1">
                   {formatOrDash(report.distance_km, { digits: 1, locale: true })} <span className="text-[10px] text-zinc-400 font-normal">km</span>
                 </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">共 {report.drive_count} 次行程</div>
               </div>
 
               <div className="bg-zinc-950/60 p-3.5 rounded-2xl border border-zinc-800/60">
@@ -82,14 +80,6 @@ export function MonthlyReportClient({ reports, carName, carModel }: MonthlyRepor
                 <div className="text-base font-bold text-amber-400 mt-1">
                   {formatCurrency(report.charge_cost)}
                 </div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
-                  {report.charge_count} 次充电 · 共充入 {formatOrDash(report.charge_energy_kwh, { digits: 1 })} kWh
-                </div>
-                {report.unpriced_charge_count > 0 && (
-                  <div className="text-[10px] text-amber-500/80 mt-0.5">
-                    {report.unpriced_charge_count} 次充电无费用数据，未计入
-                  </div>
-                )}
               </div>
 
               <div className="bg-zinc-950/60 p-3.5 rounded-2xl border border-zinc-800/60">

@@ -76,9 +76,6 @@ export function DeviceSwitchModal() {
               </button>
             </div>
 
-            <p className="text-xs text-zinc-400 mt-2 mb-4">
-              支持在任意设备（PC / 平板 / 手机）上随时无缝切换专有体验视图。
-            </p>
 
             <div className="space-y-2">
               <button
@@ -97,8 +94,7 @@ export function DeviceSwitchModal() {
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-zinc-50">智能自适应 (默认)</div>
-                    <div className="text-xs text-zinc-400">自动根据屏幕尺寸和 UA 推断最适配模式</div>
+                    <div className="text-sm font-medium text-zinc-50">智能自适应</div>
                   </div>
                 </div>
               </button>
@@ -120,7 +116,6 @@ export function DeviceSwitchModal() {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-zinc-50">📱 移动端模式</div>
-                    <div className="text-xs text-zinc-400">单列轻量流式卡片、底部导航栏、触控手势优化</div>
                   </div>
                 </div>
               </button>
@@ -142,7 +137,6 @@ export function DeviceSwitchModal() {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-zinc-50">🖥️ PC 宽屏模式</div>
-                    <div className="text-xs text-zinc-400">多列大仪表盘、宽表与地图联动大看板</div>
                   </div>
                 </div>
               </button>

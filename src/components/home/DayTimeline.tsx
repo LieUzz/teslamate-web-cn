@@ -28,7 +28,6 @@ function ItemRow({ item, isLast }: { item: TimelineItem; isLast: boolean }) {
     detail = [
       `${formatDistance(d.distance)} · ${formatDuration(d.duration_min)}`,
       `${formatPercent(d.start_battery_level)} → ${formatPercent(d.end_battery_level)}`,
-      d.is_merged && d.merged_count ? `含 ${d.merged_count} 段` : null,
     ].filter(Boolean).join(' · ');
   } else {
     const c = item.charge;
@@ -37,7 +36,7 @@ function ItemRow({ item, isLast }: { item: TimelineItem; isLast: boolean }) {
       c.charge_energy_added != null ? `+${formatEnergy(c.charge_energy_added)}` : DASH,
       `${formatPercent(c.start_battery_level)} → ${formatPercent(c.end_battery_level)}`,
       c.end_date == null ? '充电中' : formatDuration(c.duration_min),
-      c.cost != null ? `${formatCurrency(c.cost)}${c.cost_source === 'configured' ? ' (估算)' : ''}` : null,
+      c.cost != null ? formatCurrency(c.cost) : null,
     ].filter(Boolean).join(' · ');
   }
 

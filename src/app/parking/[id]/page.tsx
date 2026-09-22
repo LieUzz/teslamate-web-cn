@@ -100,7 +100,7 @@ export default async function ParkingDetailPage({ params }: ParkingDetailPagePro
         </div>
 
         {parking.has_charge && (
-          <p className="text-[11px] text-zinc-500">期间有充电，无法计算静置损耗</p>
+          <p className="text-[11px] text-zinc-500">期间有充电</p>
         )}
       </div>
 

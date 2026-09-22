@@ -17,8 +17,6 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
   const totalEnergyAdded = sumKnown(charges, (c) => c.charge_energy_added);
   const totalCost = sumKnown(charges, (c) => c.cost);
   const totalDuration = sumKnown(charges, (c) => c.duration_min);
-  const unpricedCount = charges.filter((c) => c.cost == null).length;
-  const estimatedCount = charges.filter((c) => c.cost != null && c.cost_source === 'configured').length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -29,11 +27,6 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
             <Zap className="w-5 h-5 text-emerald-500" />
             <span>充电记录与统计</span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            汇总仅统计下方列出的 {charges.length} 次充电
-            {unpricedCount > 0 && ` · ${unpricedCount} 次无费用数据，未计入总费用`}
-            {estimatedCount > 0 && ` · ${estimatedCount} 次费用为按配置电价估算`}
-          </p>
         </div>
 
         <div className="flex items-center gap-4 text-xs">
@@ -97,9 +90,6 @@ export function DesktopChargesView({ charges }: DesktopChargesViewProps) {
                   </td>
                   <td className="py-3.5 font-bold text-amber-400">
                     {formatCurrency(charge.cost)}
-                    {charge.cost != null && charge.cost_source === 'configured' && (
-                      <span className="text-[10px] text-zinc-500 font-normal ml-1">估算</span>
-                    )}
                   </td>
                   <td className="py-3.5 text-right whitespace-nowrap">
                     <Link

@@ -12,6 +12,19 @@ anything unknown renders as `--` / "暂无数据".
 - Charge cost: TOU table of teslamate-chinese-dashboards > TeslaMate's
   `charging_processes.cost` (geofence pricing) > configured price (marked 估算).
 - The petrol-car comparison module ("省了多少油钱") has been removed.
+- Car state shown to the user is only 停车 / 行驶 / 充电 (`getCarStateInfo`):
+  online, offline, asleep, suspended and updating all display as 停车中
+  (updating adds the install progress inside the parked card). `Car.since`
+  is the start of that displayed state: the current drive's start, the
+  current charge's start, or the last finished drive's `end_date` for
+  parking. It is NOT the `states` table row start, because a parked car
+  flips online / offline / asleep all night and that would restart the
+  clock each time. The raw `state` is still kept for polling intervals and
+  the render animation (dimmed + Zzz while asleep).
+- No explanatory copy: the owner asked for every footnote, subtitle,
+  "(估算)" / "合并 N 段" / "高德已纠偏" style marker, data-source note
+  and share-poster signature to be removed (2026-09-22). Unknown values
+  still render as `--`; do not add such texts back.
 - Home page: alert strip (`src/lib/alerts.ts`, rules asserted by
   `scripts/smoke-alerts.ts`), car render + state card that changes with the
   car state (parked / charging / driving / asleep / updating), body status,

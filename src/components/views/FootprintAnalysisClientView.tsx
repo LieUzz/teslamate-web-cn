@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { FootprintDrivePath, VisitedLocation, DriveSummary, LifetimeStats } from '@/types';
 import { FootprintMap } from '@/components/map/FootprintMap';
 import { formatDistance, formatDuration, formatDateTime, formatEfficiency, formatSpeed, formatOrDash, DASH } from '@/lib/formatters';
-import { FOOTPRINT_MAX_DRIVES } from '@/lib/constants';
 import { Empty } from '@/components/common/Empty';
 import {
   ArrowLeft,
@@ -117,9 +116,6 @@ export function FootprintAnalysisClientView({
                   行车足迹地图
                 </h1>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                地图最多绘制最近 {FOOTPRINT_MAX_DRIVES} 段行程的轨迹；下方明细与指标基于已加载的 {drives.length} 段行程
-              </p>
             </div>
           </div>
 
@@ -209,7 +205,7 @@ export function FootprintAnalysisClientView({
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-zinc-50 flex items-center gap-2">
             <Navigation className="w-4 h-4 text-blue-400" />
-            <span>选定时段行程流水明细 ({filteredDrives.length} 条)</span>
+            <span>选定时段行程明细</span>
           </h2>
           {activePathId && (
             <button
@@ -225,7 +221,6 @@ export function FootprintAnalysisClientView({
           <Empty
             icon={Calendar}
             title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行驶足迹'}
-            hint={drives.length === 0 ? undefined : '请选择其他时间范围'}
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -248,11 +243,6 @@ export function FootprintAnalysisClientView({
                         {formatDateTime(drive.start_date)}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        {drive.is_merged && (
-                          <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-medium">
-                            ⚡ 合并{drive.merged_count}段
-                          </span>
-                        )}
                         <span className="font-bold text-zinc-50 text-sm">
                           {formatDistance(drive.distance)}
                         </span>

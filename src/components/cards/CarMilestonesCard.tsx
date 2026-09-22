@@ -32,14 +32,13 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
                 </span>
               )}
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">已达成的里程节点与下一个目标</p>
           </div>
         </div>
 
         {/* 提车日期 (只读，来自配置) */}
         <div className="inline-flex items-center gap-1.5 text-xs text-zinc-300 bg-zinc-800/90 px-3.5 py-1.5 rounded-xl border border-zinc-700/80 self-start sm:self-auto">
           <Calendar className="w-3.5 h-3.5 text-amber-400" />
-          <span>提车日: {data.delivery_date ?? '未配置 (DELIVERY_DATE)'}</span>
+          <span>提车日: {data.delivery_date ?? '未配置'}</span>
         </div>
       </div>
 
@@ -79,9 +78,6 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
           </div>
         )}
       </div>
-      {data.recent_daily_avg_km != null && (
-        <p className="text-[11px] text-zinc-500 -mt-2">近期日均基于 TeslaMate 有记录的行驶数据，用于预测下一个里程碑。</p>
-      )}
 
       {/* 里程碑梯级列表 */}
       {data.milestones.length === 0 ? (
@@ -126,7 +122,7 @@ export function CarMilestonesCard({ data }: CarMilestonesCardProps) {
                   <div className="mt-3.5 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs">
                     {beforeLogging ? (
                       <span className="text-[10px] text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800">
-                        接入 TeslaMate 前已达成
+                        已达成
                       </span>
                     ) : (
                       <div className="text-zinc-400 text-[11px]">

@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DriveSummary } from '@/types';
 import { formatDistance, formatDuration, formatEnergy, formatEfficiency, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
-import { MERGE_MAX_GAP_MINUTES } from '@/lib/constants';
 import { Empty } from '@/components/common/Empty';
 import { Route, ChevronRight, Calendar } from 'lucide-react';
 import { DriveFilterPeriod } from './MobileDrivesView';
@@ -60,9 +59,6 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
               {filteredDrives.length} 段连贯行程
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-1">
-            间隔不超过 {MERGE_MAX_GAP_MINUTES} 分钟且首尾地点一致的相邻行程已自动合并为连贯行程 (已加载最近 {drives.length} 段，汇总仅统计这些行程)
-          </p>
         </div>
 
         {/* 筛选切换 Tabs 与 动态统计 */}
@@ -123,7 +119,6 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                   colSpan={8}
                   icon={Calendar}
                   title={drives.length === 0 ? '暂无行程记录' : '选定时间范围内暂无行驶记录'}
-                  hint={drives.length === 0 ? undefined : '请选择其他时间段'}
                 />
               ) : (
                 filteredDrives.map((drive) => {
@@ -132,13 +127,6 @@ export function DesktopDrivesView({ drives }: DesktopDrivesViewProps) {
                     <tr key={drive.id} className="hover:bg-zinc-800/40 transition-colors">
                       <td className="py-3.5 font-mono text-zinc-400 whitespace-nowrap">
                         <div>{formatDateTime(drive.start_date)}</div>
-                        {drive.is_merged && (
-                          <div className="mt-1">
-                            <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-medium">
-                              ⚡ 合并{drive.merged_count}段
-                            </span>
-                          </div>
-                        )}
                       </td>
                       <td className="py-3.5 max-w-xs truncate">
                         <div className="truncate text-zinc-200">

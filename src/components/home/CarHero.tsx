@@ -5,7 +5,7 @@ import { Car } from '@/types';
 import { BatteryRing } from '@/components/car/BatteryRing';
 import { CarScene } from './CarScene';
 import { StateCard } from './StateCard';
-import { DASH, formatOrDash, formatTimeAgo, getCarStateInfo } from '@/lib/formatters';
+import { DASH, formatOrDash, getCarStateInfo } from '@/lib/formatters';
 import { useNow } from '@/lib/useNow';
 
 interface CarHeroProps {
@@ -38,7 +38,6 @@ export function CarHero({ car, updateFailed }: CarHeroProps) {
   const badge = [modelLabel, car.trim_badging ? `(${car.trim_badging})` : null].filter(Boolean).join(' ');
   const isCharging = car.state === 'charging';
   const level = car.battery_level;
-  const asleepOrOffline = car.state === 'asleep' || car.state === 'offline';
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-900/95 via-zinc-900/80 to-zinc-950/95 border border-zinc-800/80 p-4 sm:p-6 shadow-2xl">
@@ -93,13 +92,7 @@ export function CarHero({ car, updateFailed }: CarHeroProps) {
         <StateCard car={car} now={now} />
       </div>
 
-      {/* 休眠 / 离线时状态卡已说明数据是此前的，这里不再显示同步时间 */}
-      {!asleepOrOffline && (
-        <div className="mt-2.5 text-[10px] text-zinc-500 text-right">
-          {car.live_updated_at ? `最近同步 ${now == null ? DASH : formatTimeAgo(car.live_updated_at)}` : '尚未收到实时数据'}
-          {updateFailed && <span className="text-amber-400"> · 更新失败，稍后重试</span>}
-        </div>
-      )}
+      {updateFailed && <div className="mt-2.5 text-[10px] text-amber-400 text-right">更新失败，稍后重试</div>}
     </div>
   );
 }

@@ -216,14 +216,13 @@ export function ShareDriveModal({
       ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
       ctx.fillRect(0, 0, width, height);
 
-      // 标注如实反映底图是否真的画上了
-      mapLabel = drawnTiles > 0 ? '底图 © 高德地图' : '底图未加载 · 仅轨迹';
+      mapLabel = '';
     }
 
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(mapLabel, width - 10, height - 10);
+    if (mapLabel) ctx.fillText(mapLabel, width - 10, height - 10);
 
     // 3. 投影到 Canvas 像素并绘制行车轨迹
     const projectedPoints = gcjPoints.map(([lng, lat]) => {
@@ -355,7 +354,6 @@ export function ShareDriveModal({
       consumption.length > 0 ? `🔋 电量消耗: ${consumption.join(' · ')}` : null,
       drive.efficiency_wh_km != null ? `🌿 平均能耗: ${formatEfficiency(drive.efficiency_wh_km)}` : null,
       route.length === 2 ? `🏁 路线: ${route[0]} ➔ ${route[1]}` : null,
-      '✨ 由 TeslaMate CN 生成',
     ].filter((v): v is string => v != null);
     const text = lines.join('\n');
 
@@ -521,11 +519,6 @@ export function ShareDriveModal({
                 </div>
               )}
 
-              {/* 6. 底部品牌与签名 */}
-              <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800/60">
-                <span className="font-mono">TeslaMate CN</span>
-                <span>数据来自 TeslaMate 行车记录</span>
-              </div>
             </div>
           )}
 

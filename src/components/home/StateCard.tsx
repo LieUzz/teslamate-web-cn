@@ -4,7 +4,7 @@ import React from 'react';
 import { Car } from '@/types';
 import { DASH, formatDuration, formatOrDash, formatPercent } from '@/lib/formatters';
 import { minutesSince } from '@/lib/useNow';
-import { BatteryCharging, Download, Moon, Navigation, ParkingCircle, WifiOff } from 'lucide-react';
+import { BatteryCharging, Download, Navigation, ParkingCircle } from 'lucide-react';
 
 interface StateCardProps {
   car: Car;
@@ -20,7 +20,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Shell({ icon: Icon, tone, title, children }: { icon: typeof Moon; tone: string; title: string; children?: React.ReactNode }) {
+function Shell({ icon: Icon, tone, title, children }: { icon: typeof ParkingCircle; tone: string; title: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-2xl bg-zinc-950/60 border border-zinc-800/80 p-3">
       <div className={`flex items-center gap-1.5 text-xs font-semibold ${tone}`}>
@@ -32,7 +32,7 @@ function Shell({ icon: Icon, tone, title, children }: { icon: typeof Moon; tone:
   );
 }
 
-// 随车辆状态切换的状态卡：充电 / 行驶 / 升级 / 休眠·离线 / 停车
+// 随车辆状态切换的状态卡：充电 / 行驶 / 停车 (升级中也算停车，卡内显示安装进度)
 export function StateCard({ car, now }: StateCardProps) {
   const elapsed = formatDuration(minutesSince(car.since, now));
 
@@ -73,37 +73,25 @@ export function StateCard({ car, now }: StateCardProps) {
     );
   }
 
-  if (car.state === 'updating') {
-    return (
-      <Shell icon={Download} tone="text-purple-400" title={car.update_version ? `正在安装 ${car.update_version}` : '正在安装软件更新'}>
-        {car.install_percent != null && (
-          <>
-            <div className="h-2 rounded-full bg-zinc-800 mt-3">
-              <div className="h-full rounded-full bg-purple-500 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, car.install_percent))}%` }} />
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-1.5">安装进度 {formatPercent(car.install_percent)}</div>
-          </>
-        )}
-      </Shell>
-    );
-  }
-
-  if (car.state === 'asleep' || car.state === 'offline') {
-    const asleep = car.state === 'asleep';
-    return (
-      <Shell icon={asleep ? Moon : WifiOff} tone={asleep ? 'text-indigo-400' : 'text-zinc-400'} title={`${asleep ? '已休眠' : '已离线'} ${elapsed}`}>
-        <p className="text-[11px] text-zinc-400 mt-1.5">
-          {asleep ? 'TeslaMate 不会唤醒休眠中的车辆，' : '车辆当前没有网络连接，'}以下为此前最后一次读到的数据
-        </p>
-      </Shell>
-    );
-  }
-
   if (car.state == null) return null;
 
+  const updating = car.state === 'updating';
   return (
-    <Shell icon={ParkingCircle} tone="text-amber-400" title={`已停放 ${elapsed}`}>
+    <Shell icon={updating ? Download : ParkingCircle} tone={updating ? 'text-purple-400' : 'text-zinc-300'} title={elapsed === DASH ? '已停放' : `已停放 ${elapsed}`}>
       {car.address && <p className="text-[11px] text-zinc-400 mt-1.5 truncate">{car.address}</p>}
+      {updating && (
+        <div className="mt-2">
+          <div className="text-[11px] text-purple-400">{car.update_version ? `正在安装 ${car.update_version}` : '正在安装软件更新'}</div>
+          {car.install_percent != null && (
+            <>
+              <div className="h-2 rounded-full bg-zinc-800 mt-1.5">
+                <div className="h-full rounded-full bg-purple-500 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, car.install_percent))}%` }} />
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1.5">安装进度 {formatPercent(car.install_percent)}</div>
+            </>
+          )}
+        </div>
+      )}
     </Shell>
   );
 }

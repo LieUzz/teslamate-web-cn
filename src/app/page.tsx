@@ -18,7 +18,7 @@ export default async function HomePage() {
   if (!primaryCar) {
     return (
       <div className="max-w-4xl mx-auto pt-2 px-3">
-        <Empty title="暂无车辆数据" hint="未能从 TeslaMate 数据库读取到车辆，请检查数据库连接或等待 TeslaMate 完成首次同步" />
+        <Empty title="暂无车辆数据" />
       </div>
     );
   }

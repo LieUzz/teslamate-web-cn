@@ -141,7 +141,8 @@ export async function fetchCars(carId?: number): Promise<Car[]> {
         pos.inside_temp, pos.outside_temp, pos.is_climate_on, pos.battery_heater,
         pos.latitude, pos.longitude,
         tp.tpms_pressure_fl, tp.tpms_pressure_fr, tp.tpms_pressure_rl, tp.tpms_pressure_rr,
-        st.state, st.start_date AS since,
+        st.state,
+        cd.start_date AS drive_since, cc.start_date AS charge_since, ld.end_date AS parked_since,
         upd.version,
         lg.name AS last_geofence,
         ${addressExpr('la')} AS last_address
@@ -161,9 +162,15 @@ export async function fetchCars(carId?: number): Promise<Car[]> {
         SELECT version FROM updates u WHERE u.car_id = c.id AND u.version IS NOT NULL ORDER BY u.start_date DESC LIMIT 1
       ) upd ON true
       LEFT JOIN LATERAL (
-        SELECT d.end_geofence_id, d.end_address_id FROM drives d
+        SELECT d.end_geofence_id, d.end_address_id, d.end_date FROM drives d
         WHERE d.car_id = c.id AND d.end_date IS NOT NULL ORDER BY d.start_date DESC LIMIT 1
       ) ld ON true
+      LEFT JOIN LATERAL (
+        SELECT start_date FROM drives d WHERE d.car_id = c.id AND d.end_date IS NULL ORDER BY d.start_date DESC LIMIT 1
+      ) cd ON true
+      LEFT JOIN LATERAL (
+        SELECT start_date FROM charging_processes cp WHERE cp.car_id = c.id AND cp.end_date IS NULL ORDER BY cp.start_date DESC LIMIT 1
+      ) cc ON true
       LEFT JOIN geofences lg ON lg.id = ld.end_geofence_id
       LEFT JOIN addresses la ON la.id = ld.end_address_id
       WHERE ($1::int IS NULL OR c.id = $1)
@@ -179,6 +186,12 @@ export async function fetchCars(carId?: number): Promise<Car[]> {
       const liveRange = basis === 'ideal' ? live.ideal_battery_range_km : live.rated_battery_range_km;
       // 行驶中"上一段行程的终点"不是当前位置，此时只按坐标解析
       const parked = state !== 'driving';
+      // 状态起点：行驶 = 本段行程开始，充电 = 本次充电开始，其余都算停车 = 最后一次行程结束。
+      // 不用 states 表：车停着时在线 / 离线 / 休眠反复切换，每切一次那里就重新计时
+      const since =
+        state === 'driving' ? iso(row.drive_since) ?? iso(live.since)
+        : state === 'charging' ? iso(row.charge_since) ?? iso(live.since)
+        : iso(row.parked_since);
       return {
         id: row.id,
         name: live.display_name ?? text(row.name),
@@ -196,7 +209,7 @@ export async function fetchCars(carId?: number): Promise<Car[]> {
         speed: live.speed ?? num(row.speed),
         power: live.power ?? num(row.power),
         state,
-        since: iso(live.since ?? row.since),
+        since,
         inside_temp: live.inside_temp ?? num(row.inside_temp),
         outside_temp: live.outside_temp ?? num(row.outside_temp),
         is_climate_on: live.is_climate_on ?? bool(row.is_climate_on),

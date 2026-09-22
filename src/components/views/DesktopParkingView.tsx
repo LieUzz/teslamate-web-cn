@@ -29,9 +29,6 @@ export function DesktopParkingView({ parkings, energy, analysis }: DesktopParkin
             <Moon className="w-5 h-5 text-purple-400" />
             <span>停车静置与漏电专项大盘</span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            每次停车期间的续航与电量变化明细 (下方列出最近 {parkings.length} 次)
-          </p>
         </div>
 
         <div className="flex items-center gap-3 text-xs">

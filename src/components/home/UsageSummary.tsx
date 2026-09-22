@@ -12,12 +12,11 @@ const PERIODS: { key: UsagePeriod; label: string }[] = [
   { key: 'month', label: '本月' },
 ];
 
-function Cell({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Cell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 p-2.5 min-w-0">
       <div className="text-[10px] text-zinc-400 whitespace-nowrap">{label}</div>
       <div className="text-sm font-bold text-zinc-50 whitespace-nowrap truncate mt-0.5">{value}</div>
-      {hint && <div className="text-[10px] text-zinc-500 whitespace-nowrap truncate mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -58,16 +57,12 @@ export function UsageSummary({ summaries }: { summaries: UsageSummaryData[] }) {
           <Empty as="chart" title={`${label}暂无行程和充电`} />
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            <Cell label="行驶里程" value={current.drive_count === 0 ? '暂无行程' : formatOrDash(current.distance_km, { digits: 1, unit: 'km' })} hint={`${current.drive_count} 段行程`} />
+            <Cell label="行驶里程" value={current.drive_count === 0 ? '暂无行程' : formatOrDash(current.distance_km, { digits: 1, unit: 'km' })} />
             <Cell label="行驶耗电" value={formatOrDash(current.drive_kwh, { digits: 1, unit: 'kWh' })} />
             <Cell label="平均能耗" value={formatOrDash(current.avg_wh_km, { digits: 0, unit: 'Wh/km' })} />
             <Cell label="充电次数" value={`${current.charge_count} 次`} />
             <Cell label="充入电量" value={current.charge_count === 0 ? '暂无充电' : formatOrDash(current.charge_energy_kwh, { digits: 1, unit: 'kWh' })} />
-            <Cell
-              label="充电费用"
-              value={formatCurrency(current.charge_cost)}
-              hint={current.unpriced_charge_count > 0 ? `${current.unpriced_charge_count} 次无费用数据` : undefined}
-            />
+            <Cell label="充电费用" value={formatCurrency(current.charge_cost)} />
           </div>
         )}
       </div>

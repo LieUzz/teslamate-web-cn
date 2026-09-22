@@ -39,17 +39,6 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
           .filter(Boolean)
           .join(' · ');
 
-  const costNote =
-    charge.cost == null
-      ? '无费用数据'
-      : charge.cost_source === 'configured'
-        ? '按配置电价估算'
-        : charge.cost_source === 'tou'
-          ? '按分时电价表计算'
-          : charge.cost_source === 'teslamate'
-            ? 'TeslaMate 记录'
-            : null;
-
   return (
     <div className="space-y-4 pb-24 pt-2 px-3 max-w-4xl mx-auto">
       {/* 返回导航 */}
@@ -96,10 +85,8 @@ export default async function ChargeDetailPage({ params }: ChargeDetailPageProps
 
           <div className="sm:text-right">
             <span className={`text-xl font-bold ${charge.cost == null ? 'text-zinc-500' : 'text-amber-400'}`}>
-              {charge.cost != null && charge.cost_source === 'configured' ? '≈ ' : ''}
               {formatCurrency(charge.cost)}
             </span>
-            {costNote && <div className="text-[10px] text-zinc-500 mt-0.5">{costNote}</div>}
           </div>
         </div>
 

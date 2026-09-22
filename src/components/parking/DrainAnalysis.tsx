@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { ParkingDrainAnalysis, ParkingDrainPeriod, ParkingDrainBand } from '@/types';
-import { PARKING_DRAIN_POWER_BANDS_W, PARKING_DRAIN_TREND_MONTHS } from '@/lib/constants';
+import { PARKING_DRAIN_POWER_BANDS_W } from '@/lib/constants';
 import { formatOrDash, DASH } from '@/lib/formatters';
 import { Empty } from '@/components/common/Empty';
 import { ParkingDrainChart } from '@/components/charts/lazy';
@@ -20,21 +20,14 @@ const BAND_META: Record<ParkingDrainBand['key'], { label: string; range: string;
   high: { label: '偏高', range: `> ${PARKING_DRAIN_POWER_BANDS_W.high_from} W`, bar: 'bg-red-500', text: 'text-red-400' },
 };
 
-// TeslaMate 的推算规则 (lib/teslamate/log.ex recalculate_efficiency)：结束电量 ≤ 95%、时长 > 10 分钟的充电，
-// 且至少 2 次算出相同的系数 (保留 2 位小数) 才采用
-const EFFICIENCY_HINT = 'TeslaMate 需要至少两次结束电量 ≤ 95%、超过 10 分钟且算出相同系数的充电才能推算能耗系数';
-
-function CardHeader({ icon: Icon, tone, title, hint, right }: { icon: typeof BarChart3; tone: string; title: string; hint?: string; right?: React.ReactNode }) {
+function CardHeader({ icon: Icon, tone, title, right }: { icon: typeof BarChart3; tone: string; title: string; right?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <div className={`p-1.5 rounded-lg ${tone}`}>
           <Icon className="w-4 h-4" />
         </div>
-        <div className="min-w-0">
-          <div className="text-xs font-bold text-zinc-50">{title}</div>
-          {hint && <div className="text-[10px] text-zinc-500 truncate">{hint}</div>}
-        </div>
+        <div className="text-xs font-bold text-zinc-50 min-w-0">{title}</div>
       </div>
       {right}
     </div>
@@ -63,13 +56,10 @@ export function DrainAnalysis({ data }: { data: ParkingDrainAnalysis }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       {/* 按月趋势 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 shadow-lg">
-        <CardHeader icon={BarChart3} tone="bg-amber-500/10 text-amber-400" title="按月掉电趋势" hint={`近 ${PARKING_DRAIN_TREND_MONTHS} 个月 · 不含期间充过电的停车`} />
+        <CardHeader icon={BarChart3} tone="bg-amber-500/10 text-amber-400" title="按月掉电趋势" />
         <div className="mt-2">
           <ParkingDrainChart months={data.months} unit={data.efficiency_known ? 'kwh' : 'km'} />
         </div>
-        {!data.efficiency_known && data.months.length > 0 && (
-          <p className="text-[10px] text-zinc-500 mt-1">能耗系数未知，先按续航损失 (km) 显示；{EFFICIENCY_HINT}，之后自动改按 kWh。</p>
-        )}
       </div>
 
       {/* 分档 + 状态占比，共用周期页签 */}
@@ -78,7 +68,6 @@ export function DrainAnalysis({ data }: { data: ParkingDrainAnalysis }) {
           icon={Gauge}
           tone="bg-purple-500/10 text-purple-400"
           title="掉电速率分档"
-          hint="按每次停车的平均待机功率"
           right={
             <div className="flex items-center gap-1 bg-zinc-950/60 border border-zinc-800/80 rounded-full p-0.5 shrink-0">
               {PERIODS.map((p) => (
@@ -100,7 +89,7 @@ export function DrainAnalysis({ data }: { data: ParkingDrainAnalysis }) {
           {!current ? (
             <Empty as="chart" title="暂无数据" />
           ) : !data.efficiency_known ? (
-            <Empty as="chart" title="能耗系数未知，暂时无法分档" hint={`${EFFICIENCY_HINT}。${periodLabel}有 ${current.unknown_count} 次停车等待计算`} />
+            <Empty as="chart" title="暂无数据" />
           ) : knownCount === 0 && current.unknown_count === 0 ? (
             <Empty as="chart" title={`${periodLabel}暂无停车记录`} />
           ) : (
@@ -125,15 +114,12 @@ export function DrainAnalysis({ data }: { data: ParkingDrainAnalysis }) {
                   </div>
                 );
               })}
-              {current.unknown_count > 0 && (
-                <div className="text-[10px] text-zinc-500">另有 {current.unknown_count} 次停车缺少续航数据，无法计算</div>
-              )}
             </div>
           )}
         </div>
 
         <div className="mt-4 pt-3 border-t border-zinc-800/80">
-          <CardHeader icon={BedDouble} tone="bg-blue-500/10 text-blue-400" title="停车时的状态" hint={`${periodLabel} · 在线(停车) = 在线时长 − 行驶 − 充电`} />
+          <CardHeader icon={BedDouble} tone="bg-blue-500/10 text-blue-400" title="停车时的状态" />
           {!current || stateValues.every((v) => v == null) ? (
             <Empty as="chart" title={`${periodLabel}暂无状态记录`} />
           ) : (
