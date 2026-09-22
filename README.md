@@ -69,6 +69,12 @@ anything unknown renders as `--` / "暂无数据".
 - Optional configuration, none of which has a default: `AMAP_KEY`,
   `DELIVERY_DATE`, `ELECTRICITY_PRICE_CNY_PER_KWH`, `BATTERY_ORIGINAL_RANGE_KM`,
   `HOME_GEOFENCE_NAME`, `MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_NAMESPACE`.
+- Client errors: `src/app/error.tsx` / `global-error.tsx` replace Next's
+  "Application error" page. A ChunkLoadError (an old page still open on the
+  phone after a redeploy asks for JS chunks that no longer exist) reloads
+  the page once (`src/lib/clientError.ts`); anything else is shown with its
+  message and POSTed to `/api/client-error/`, which only writes one line to
+  the server log. Nothing is stored.
 - Checks: `pnpm typecheck`, `pnpm check:hardcodes`. Data-layer smoke test
   against a throwaway Postgres: load a schema-only dump of TeslaMate, then
   `scripts/smoke-seed.sql` (synthetic data with hand-computable answers; the
