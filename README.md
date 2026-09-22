@@ -29,6 +29,23 @@ anything unknown renders as `--` / "暂无数据".
   from the verified table in `src/lib/carImage.ts`; the service answers 200
   even for unknown codes, so only add combinations you have looked at. No match
   = no image, the hero falls back to the battery ring.
+- Home timeline: the bottom of the home page lists today's drives and
+  charges in time order (`components/home/DayTimeline.tsx`,
+  `fetchDayTimeline`; drives merged like the drives page). `/timeline/?date=`
+  browses other days; the arrows jump to the previous / next day that has
+  activity. Days are natural days in the configured `TZ`, items belong to
+  the day they started. This replaced the "latest drive / latest charge"
+  cards.
+- Parking page analysis (`components/parking/DrainAnalysis.tsx`,
+  `fetchParkingDrainAnalysis`): monthly drain bars for the last
+  `PARKING_DRAIN_TREND_MONTHS` months (kWh once `cars.efficiency` is known,
+  range km before that), standby-power bands per parking
+  (`PARKING_DRAIN_POWER_BANDS_W`, W = kWh lost / hours) and asleep / offline /
+  online-while-parked hours (online minus driving minus charging, clipped to
+  the period) for this week / this month / all time. Same filter as the
+  energy breakdown: parkings without a charge and at least
+  `MIN_PARKING_SECONDS` long. Not built (owner's decision): charging-cost
+  analysis and software-update history.
 - Themes: dark / light / follow system, chosen in the floating settings
   button (外观) and stored in `localStorage`. Neutral colours are the `zinc-*`
   classes, which resolve to CSS variables in `src/app/globals.css`
@@ -41,8 +58,10 @@ anything unknown renders as `--` / "暂无数据".
   `HOME_GEOFENCE_NAME`, `MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_NAMESPACE`.
 - Checks: `pnpm typecheck`, `pnpm check:hardcodes`. Data-layer smoke test
   against a throwaway Postgres: load a schema-only dump of TeslaMate, then
-  `scripts/smoke-seed.sql` (synthetic data with hand-computable answers), and
-  run `npx tsx scripts/smoke-data-layer.ts` with `DATABASE_*` pointing at it.
+  `scripts/smoke-seed.sql` (synthetic data with hand-computable answers; the
+  last block is relative to `now()` so the week / month periods are covered),
+  and run `npx tsx scripts/smoke-data-layer.ts` with `DATABASE_*` pointing at
+  it (`SMOKE_DATE=YYYY-MM-DD` picks the timeline day).
 
 The rest of this README is upstream's and may describe removed features
 (demo mode, hardcoded tariffs).

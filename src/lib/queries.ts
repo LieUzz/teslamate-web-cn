@@ -19,6 +19,8 @@ import {
   MIN_LOGGED_DAYS_FOR_DAILY_AVG,
   MIN_PARKING_SECONDS,
   PARKING_CURVE_TARGET_POINTS,
+  PARKING_DRAIN_POWER_BANDS_W,
+  PARKING_DRAIN_TREND_MONTHS,
   RECORD_WINDOW_DAYS,
 } from './constants';
 import {
@@ -43,6 +45,13 @@ import {
   DrivingRecordItem,
   CarMilestone,
   CarMilestonesData,
+  DayTimeline,
+  TimelineItem,
+  ParkingDrainAnalysis,
+  ParkingDrainBand,
+  ParkingDrainMonth,
+  ParkingDrainPeriod,
+  ParkingDrainPeriodStats,
 } from '@/types';
 
 // 数据层约定：
@@ -418,7 +427,8 @@ async function queryDrives(pool: Pool, q: DriveQuery): Promise<DriveSummary[]> {
     ORDER BY d.start_date DESC
     LIMIT $5 OFFSET $6
     `,
-    [q.carId ?? null, q.driveIds ?? null, q.from ?? null, q.to ?? null, q.limit ?? null, q.offset ?? 0]
+    // 库里是 UTC 的 timestamp without time zone：Date 参数必须按 UTC 序列化，否则 pg 会按进程时区拼字符串
+    [q.carId ?? null, q.driveIds ?? null, q.from?.toISOString() ?? null, q.to?.toISOString() ?? null, q.limit ?? null, q.offset ?? 0]
   );
 
   return res.rows.map((row): DriveSummary => {
@@ -680,7 +690,15 @@ export async function fetchParkingDetail(parkingId: number): Promise<ParkingDeta
 const chargeCostExpr = (priceParam: string) =>
   `COALESCE(tc.cost_tou, cp.cost, ${priceParam}::numeric * COALESCE(cp.charge_energy_used, cp.charge_energy_added))`;
 
-async function queryCharges(pool: Pool, carId: number | null, chargeId: number | null, limit: number | null, offset: number) {
+async function queryCharges(
+  pool: Pool,
+  carId: number | null,
+  chargeId: number | null,
+  limit: number | null,
+  offset: number,
+  from: string | null = null,
+  to: string | null = null
+) {
   const basis = await getRangeBasis(pool);
   const touJoin = await getTouCostJoin(pool);
   const price = getConfig().electricityPriceCnyPerKwh;
@@ -709,10 +727,12 @@ async function queryCharges(pool: Pool, carId: number | null, chargeId: number |
     ) ch ON true
     WHERE ($1::int IS NULL OR cp.car_id = $1)
       AND ($2::int IS NULL OR cp.id = $2)
+      AND ($6::timestamp IS NULL OR cp.start_date >= $6)
+      AND ($7::timestamp IS NULL OR cp.start_date <= $7)
     ORDER BY cp.start_date DESC
     LIMIT $3 OFFSET $4
     `,
-    [carId, chargeId, limit, offset, price]
+    [carId, chargeId, limit, offset, price, from, to]
   );
 
   return res.rows.map((row): ChargeSummary => {
@@ -1599,5 +1619,254 @@ export async function fetchCarMilestones(carId?: number): Promise<CarMilestonesD
   } catch (err) {
     console.error('fetchCarMilestones error:', err);
     return emptyCarMilestones(carId ?? null);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 活动时间线 (首页 "今日动态" / 按天翻看)
+// ---------------------------------------------------------------------------
+
+const isYmd = (v: string | undefined): v is string =>
+  v != null && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(`${v}T00:00:00Z`).getTime());
+
+/**
+ * 某个自然日 (配置时区) 的行程与充电，按开始时间归属并升序排列；
+ * 同时给出前后最近一个有活动的日期，供按天翻页跳过空白日。date 缺省或非法时取今天。
+ */
+export async function fetchDayTimeline(carId?: number, date?: string): Promise<DayTimeline> {
+  const { timeZone } = getConfig();
+  const today = localDateString(new Date());
+  const day = isYmd(date) ? date : today;
+  const empty: DayTimeline = { date: day, is_today: day === today, items: [], prev_date: null, next_date: null, latest_activity_date: null };
+
+  const pool = getDbPool();
+  if (!pool) return empty;
+
+  try {
+    // 自然日的 UTC 边界 (库里是 UTC 的 timestamp without time zone)
+    const boundsRes = await pool.query(
+      `SELECT to_char((($1::date)::timestamp AT TIME ZONE $2) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS day_start,
+              to_char(((($1::date) + 1)::timestamp AT TIME ZONE $2) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS day_end`,
+      [day, timeZone]
+    );
+    const dayStart = new Date(boundsRes.rows[0].day_start);
+    // 上界取到下一天 0 点之前 1 毫秒，避免正好 0 点开始的记录算进两天
+    const dayEnd = new Date(new Date(boundsRes.rows[0].day_end).getTime() - 1);
+
+    const [drives, charges, datesRes] = await Promise.all([
+      queryDrives(pool, { carId, from: dayStart, to: dayEnd, limit: null }),
+      queryCharges(pool, carId ?? null, null, null, 0, dayStart.toISOString(), dayEnd.toISOString()),
+      pool.query(
+        `
+        WITH activity AS (
+          SELECT (d.start_date AT TIME ZONE 'UTC' AT TIME ZONE $2)::date AS day
+          FROM drives d WHERE d.end_date IS NOT NULL AND ($1::int IS NULL OR d.car_id = $1)
+          UNION ALL
+          SELECT (cp.start_date AT TIME ZONE 'UTC' AT TIME ZONE $2)::date
+          FROM charging_processes cp WHERE ($1::int IS NULL OR cp.car_id = $1)
+        )
+        SELECT to_char(MAX(day) FILTER (WHERE day < $3::date), 'YYYY-MM-DD') AS prev_date,
+               to_char(MIN(day) FILTER (WHERE day > $3::date), 'YYYY-MM-DD') AS next_date,
+               to_char(MAX(day), 'YYYY-MM-DD') AS latest_activity_date
+        FROM activity
+        `,
+        [carId ?? null, timeZone, day]
+      ),
+    ]);
+
+    const items: TimelineItem[] = [
+      ...mergeConsecutiveDrives(drives).map((drive): TimelineItem => ({ kind: 'drive', drive })),
+      ...charges.map((charge): TimelineItem => ({ kind: 'charge', charge })),
+    ].sort((a, b) => {
+      const ta = new Date(a.kind === 'drive' ? a.drive.start_date : a.charge.start_date).getTime();
+      const tb = new Date(b.kind === 'drive' ? b.drive.start_date : b.charge.start_date).getTime();
+      return ta - tb;
+    });
+
+    const dates = datesRes.rows[0] ?? {};
+    return {
+      ...empty,
+      items,
+      prev_date: text(dates.prev_date),
+      next_date: text(dates.next_date),
+      latest_activity_date: text(dates.latest_activity_date),
+    };
+  } catch (err) {
+    console.error('fetchDayTimeline error:', err);
+    return empty;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 停车页掉电分析
+// ---------------------------------------------------------------------------
+
+const DRAIN_PERIODS: ParkingDrainPeriod[] = ['week', 'month', 'all'];
+const DRAIN_BANDS: ParkingDrainBand['key'][] = ['low', 'normal', 'high'];
+
+const EMPTY_DRAIN_ANALYSIS: ParkingDrainAnalysis = {
+  efficiency_known: false,
+  months: [],
+  periods: DRAIN_PERIODS.map((period) => ({
+    period,
+    bands: DRAIN_BANDS.map((key) => ({ key, count: 0, hours: null, energy_lost_kwh: null })),
+    unknown_count: 0,
+    asleep_hours: null,
+    offline_hours: null,
+    online_parked_hours: null,
+  })),
+};
+
+/**
+ * 停车掉电分析：按月趋势 (最近 PARKING_DRAIN_TREND_MONTHS 个月)、按待机功率分档、停车期间的车辆状态时长。
+ * 口径同 fetchEnergyBreakdown：不含期间充过电的停车，且时长不短于 MIN_PARKING_SECONDS；按开始时间归月 / 归期 (配置时区)。
+ */
+export async function fetchParkingDrainAnalysis(carId?: number): Promise<ParkingDrainAnalysis> {
+  const pool = getDbPool();
+  if (!pool) return EMPTY_DRAIN_ANALYSIS;
+
+  try {
+    const basis = await getRangeBasis(pool);
+    const { timeZone } = getConfig();
+    const car = carId ?? null;
+
+    // 停车段 + 派生量。local_start 是配置时区下的本地时间 (naive)
+    const drainCte = `
+      ${parkingCte(basis)},
+      drain AS (
+        SELECT pf.car_id, pf.start_date,
+               (pf.start_date AT TIME ZONE 'UTC' AT TIME ZONE $2) AS local_start,
+               pf.duration_sec / 3600.0 AS hours,
+               (pf.start_range_km - pf.end_range_km) AS range_lost_km,
+               (pf.start_range_km - pf.end_range_km) * pf.efficiency AS energy_lost_kwh,
+               CASE WHEN pf.duration_sec > 0
+                    THEN (pf.start_range_km - pf.end_range_km) * pf.efficiency * 1000 / (pf.duration_sec / 3600.0) END AS avg_power_w
+        FROM parking_full pf
+        WHERE NOT pf.has_charge AND pf.duration_sec >= $3 AND ($1::int IS NULL OR pf.car_id = $1)
+      )`;
+
+    const [effRes, monthRes, bandRes, stateRes] = await Promise.all([
+      pool.query(`SELECT BOOL_AND(efficiency IS NOT NULL) AS known FROM cars WHERE ($1::int IS NULL OR id = $1)`, [car]),
+      pool.query(
+        `
+        WITH ${drainCte}
+        SELECT to_char(date_trunc('month', local_start), 'YYYY-MM') AS month,
+               COUNT(*) AS parking_count,
+               SUM(hours) AS hours,
+               SUM(range_lost_km) AS range_lost_km,
+               SUM(energy_lost_kwh) AS energy_lost_kwh
+        FROM drain
+        WHERE local_start >= date_trunc('month', now() AT TIME ZONE $2) - make_interval(months => $4::int - 1)
+        GROUP BY 1
+        ORDER BY 1
+        `,
+        [car, timeZone, MIN_PARKING_SECONDS, PARKING_DRAIN_TREND_MONTHS]
+      ),
+      pool.query(
+        `
+        WITH ${drainCte},
+        bounds AS (
+          SELECT p.period, date_trunc(p.unit, now() AT TIME ZONE $2) AS local_from
+          FROM (VALUES ('week', 'week'), ('month', 'month'), ('all', NULL::text)) AS p(period, unit)
+        )
+        SELECT b.period,
+               CASE WHEN d.avg_power_w IS NULL THEN 'unknown'
+                    WHEN d.avg_power_w < $4 THEN 'low'
+                    WHEN d.avg_power_w < $5 THEN 'normal'
+                    ELSE 'high' END AS band,
+               COUNT(*) AS count, SUM(d.hours) AS hours, SUM(d.energy_lost_kwh) AS energy_lost_kwh
+        FROM bounds b
+        JOIN drain d ON (b.local_from IS NULL OR d.local_start >= b.local_from)
+        GROUP BY 1, 2
+        `,
+        [car, timeZone, MIN_PARKING_SECONDS, PARKING_DRAIN_POWER_BANDS_W.normal_from, PARKING_DRAIN_POWER_BANDS_W.high_from]
+      ),
+      // 各周期内 states / 行程 / 充电的时长，区间按周期起点与现在裁剪 (库里都是 UTC 的 naive timestamp)
+      pool.query(
+        `
+        WITH bounds AS (
+          SELECT p.period,
+                 (date_trunc(p.unit, now() AT TIME ZONE $2) AT TIME ZONE $2) AT TIME ZONE 'UTC' AS utc_from,
+                 now() AT TIME ZONE 'UTC' AS utc_now
+          FROM (VALUES ('week', 'week'), ('month', 'month'), ('all', NULL::text)) AS p(period, unit)
+        ),
+        state_hours AS (
+          SELECT b.period, s.state,
+                 SUM(EXTRACT(EPOCH FROM (LEAST(COALESCE(s.end_date, b.utc_now), b.utc_now) - GREATEST(s.start_date, COALESCE(b.utc_from, s.start_date))))) / 3600.0 AS hours
+          FROM bounds b
+          JOIN states s ON (b.utc_from IS NULL OR COALESCE(s.end_date, b.utc_now) > b.utc_from) AND s.start_date < b.utc_now
+          WHERE ($1::int IS NULL OR s.car_id = $1)
+          GROUP BY 1, 2
+        ),
+        drive_hours AS (
+          SELECT b.period,
+                 SUM(EXTRACT(EPOCH FROM (LEAST(d.end_date, b.utc_now) - GREATEST(d.start_date, COALESCE(b.utc_from, d.start_date))))) / 3600.0 AS hours
+          FROM bounds b
+          JOIN drives d ON d.end_date IS NOT NULL AND (b.utc_from IS NULL OR d.end_date > b.utc_from) AND d.start_date < b.utc_now
+          WHERE ($1::int IS NULL OR d.car_id = $1)
+          GROUP BY 1
+        ),
+        charge_hours AS (
+          SELECT b.period,
+                 SUM(EXTRACT(EPOCH FROM (LEAST(COALESCE(cp.end_date, b.utc_now), b.utc_now) - GREATEST(cp.start_date, COALESCE(b.utc_from, cp.start_date))))) / 3600.0 AS hours
+          FROM bounds b
+          JOIN charging_processes cp ON (b.utc_from IS NULL OR COALESCE(cp.end_date, b.utc_now) > b.utc_from) AND cp.start_date < b.utc_now
+          WHERE ($1::int IS NULL OR cp.car_id = $1)
+          GROUP BY 1
+        )
+        SELECT b.period,
+               (SELECT hours FROM state_hours sh WHERE sh.period = b.period AND sh.state = 'asleep') AS asleep_hours,
+               (SELECT hours FROM state_hours sh WHERE sh.period = b.period AND sh.state = 'offline') AS offline_hours,
+               (SELECT hours FROM state_hours sh WHERE sh.period = b.period AND sh.state = 'online') AS online_hours,
+               dh.hours AS drive_hours, ch.hours AS charge_hours
+        FROM bounds b
+        LEFT JOIN drive_hours dh ON dh.period = b.period
+        LEFT JOIN charge_hours ch ON ch.period = b.period
+        `,
+        [car, timeZone]
+      ),
+    ]);
+
+    const months: ParkingDrainMonth[] = monthRes.rows.map((row) => ({
+      month: row.month,
+      parking_count: Number(row.parking_count),
+      hours: round(num(row.hours), 1),
+      range_lost_km: round(num(row.range_lost_km), 1),
+      energy_lost_kwh: round(num(row.energy_lost_kwh), 2),
+    }));
+
+    const periods: ParkingDrainPeriodStats[] = DRAIN_PERIODS.map((period) => {
+      const bandRows = bandRes.rows.filter((r) => r.period === period);
+      const st = stateRes.rows.find((r) => r.period === period) ?? {};
+      const online = num(st.online_hours);
+      // 周期内没有行程 / 充电就是 0 小时 (不是未知)；没有 online 记录则停车在线时长未知
+      const driveHours = num(st.drive_hours) ?? 0;
+      const chargeHours = num(st.charge_hours) ?? 0;
+      return {
+        period,
+        bands: DRAIN_BANDS.map((key) => {
+          const r = bandRows.find((b) => b.band === key);
+          return {
+            key,
+            count: r ? Number(r.count) : 0,
+            hours: r ? round(num(r.hours), 1) : null,
+            energy_lost_kwh: r ? round(num(r.energy_lost_kwh), 2) : null,
+          };
+        }),
+        unknown_count: Number(bandRows.find((b) => b.band === 'unknown')?.count ?? 0),
+        asleep_hours: round(num(st.asleep_hours), 1),
+        offline_hours: round(num(st.offline_hours), 1),
+        online_parked_hours: online == null ? null : round(Math.max(0, online - driveHours - chargeHours), 1),
+      };
+    });
+
+    return {
+      efficiency_known: effRes.rows[0]?.known === true,
+      months,
+      periods,
+    };
+  } catch (err) {
+    console.error('fetchParkingDrainAnalysis error:', err);
+    return EMPTY_DRAIN_ANALYSIS;
   }
 }

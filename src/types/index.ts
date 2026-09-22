@@ -382,3 +382,56 @@ export interface CarMilestonesData {
 
 export type RecordPeriod = 'month' | 'half_year' | 'year' | 'all';
 export type DrivingRecordsByPeriod = Record<RecordPeriod, DrivingRecords>;
+
+// 首页 / 按天页面的活动时间线：某个自然日 (配置时区) 内按开始时间归属的行程与充电
+export type TimelineItem = { kind: 'drive'; drive: DriveSummary } | { kind: 'charge'; charge: ChargeSummary };
+export interface DayTimeline {
+  // YYYY-MM-DD (配置时区)
+  date: string;
+  is_today: boolean;
+  // 按开始时间升序
+  items: TimelineItem[];
+  // 前 / 后最近一个有行程或充电的日期；没有则 null
+  prev_date: string | null;
+  next_date: string | null;
+  // 全部记录里最后一次活动的日期；没有任何记录则 null
+  latest_activity_date: string | null;
+}
+
+// 停车页掉电分析
+export type ParkingDrainPeriod = 'week' | 'month' | 'all';
+export interface ParkingDrainMonth {
+  // YYYY-MM (配置时区)
+  month: string;
+  parking_count: number;
+  // 参与统计的停车总时长 (小时)
+  hours: number | null;
+  // 续航损失合计 (km)，不依赖效率系数
+  range_lost_km: number | null;
+  // 需要 cars.efficiency 才能算
+  energy_lost_kwh: number | null;
+}
+export interface ParkingDrainBand {
+  key: 'low' | 'normal' | 'high';
+  count: number;
+  hours: number | null;
+  energy_lost_kwh: number | null;
+}
+export interface ParkingDrainPeriodStats {
+  period: ParkingDrainPeriod;
+  // 固定三档顺序 low / normal / high
+  bands: ParkingDrainBand[];
+  // 无法算出待机功率的停车 (效率未知 / 续航缺值)
+  unknown_count: number;
+  // 停车状态时长 (小时)：在线(停车) = online 区间 − 行驶 − 充电，均按周期裁剪
+  asleep_hours: number | null;
+  offline_hours: number | null;
+  online_parked_hours: number | null;
+}
+export interface ParkingDrainAnalysis {
+  // cars.efficiency 是否已知：决定趋势图单位 (kWh / km) 与分档是否可用
+  efficiency_known: boolean;
+  // 最近 PARKING_DRAIN_TREND_MONTHS 个自然月里有停车记录的月份，升序
+  months: ParkingDrainMonth[];
+  periods: ParkingDrainPeriodStats[];
+}

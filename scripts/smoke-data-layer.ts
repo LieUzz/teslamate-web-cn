@@ -34,6 +34,9 @@ async function main() {
   await run('fetchDrivingRecords', async () => (await q.fetchDrivingRecords()).all);
   await run('fetchFootprintDrives', () => q.fetchFootprintDrives());
   await run('fetchCarMilestones', () => q.fetchCarMilestones());
+  await run('fetchDayTimeline (today)', () => q.fetchDayTimeline());
+  await run('fetchDayTimeline (SMOKE_DATE)', () => q.fetchDayTimeline(undefined, process.env.SMOKE_DATE));
+  await run('fetchParkingDrainAnalysis', () => q.fetchParkingDrainAnalysis());
   process.exit(0);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

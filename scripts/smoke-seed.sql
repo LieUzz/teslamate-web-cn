@@ -47,5 +47,32 @@ INSERT INTO charges (date, charging_process_id, battery_level, charge_energy_add
 INSERT INTO states (car_id, state, start_date, end_date) VALUES
   (1, 'online', '2026-08-31 23:00', '2026-09-01 01:00'),
   (1, 'asleep', '2026-09-01 01:00', '2026-09-01 09:00'),
-  (1, 'online', '2026-09-01 09:00', NULL);
+  (1, 'online', '2026-09-01 09:00', '2026-09-02 02:00'),
+  (1, 'offline', '2026-09-02 02:00', now() AT TIME ZONE 'UTC' - interval '31 hours');
 INSERT INTO updates (car_id, start_date, end_date, version) VALUES (1, '2026-08-01 00:00', '2026-08-01 00:30', '2026.1.1');
+
+-- 近期停车样本 (相对当前时间，覆盖"本周 / 本月"页签)：三段停车的待机功率分别落在 偏高 / 正常 / 已休眠 三档
+--   停车 A: 2 h 掉 6 km   → 0.9 kWh / 2 h   = 450 W
+--   停车 B: 24.5 h 掉 27 km → 4.05 kWh / 24.5 h ≈ 165 W
+--   当前停车: 1.5 h 掉 0.5 km → 0.075 kWh / 1.5 h = 50 W
+INSERT INTO positions (id, date, latitude, longitude, car_id, drive_id, battery_level, rated_battery_range_km, ideal_battery_range_km, odometer, elevation, speed, power, outside_temp) VALUES
+  (20, now() AT TIME ZONE 'UTC' - interval '30 hours',   0.13, 0.23, 1, NULL, 70, 280, 290, 50095, 100, 0, 0, 20),
+  (21, now() AT TIME ZONE 'UTC' - interval '29.5 hours', 0.10, 0.20, 1, NULL, 68, 272, 282, 50105, 100, 0, 0, 20),
+  (22, now() AT TIME ZONE 'UTC' - interval '27.5 hours', 0.10, 0.20, 1, NULL, 66, 266, 276, 50105, 100, 0, 0, 20),
+  (23, now() AT TIME ZONE 'UTC' - interval '27 hours',   0.13, 0.23, 1, NULL, 65, 262, 272, 50112, 100, 0, 0, 20),
+  (24, now() AT TIME ZONE 'UTC' - interval '2.5 hours',  0.13, 0.23, 1, NULL, 58, 235, 245, 50112, 100, 0, 0, 22),
+  (25, now() AT TIME ZONE 'UTC' - interval '2 hours',    0.10, 0.20, 1, NULL, 57, 231, 241, 50120, 100, 0, 0, 22),
+  (26, now() AT TIME ZONE 'UTC' - interval '30 minutes', 0.10, 0.20, 1, NULL, 57, 230.5, 240.5, 50120, 100, 0, 0, 22);
+INSERT INTO drives (id, car_id, start_date, end_date, distance, duration_min, start_km, end_km, start_rated_range_km, end_rated_range_km, start_ideal_range_km, end_ideal_range_km,
+                    start_position_id, end_position_id, start_geofence_id, end_geofence_id, start_address_id, end_address_id, outside_temp_avg, speed_max, power_max, power_min, ascent, descent) VALUES
+  (5, 1, now() AT TIME ZONE 'UTC' - interval '30 hours',   now() AT TIME ZONE 'UTC' - interval '29.5 hours', 10, 30, 50095, 50105, 280, 272, 290, 282, 20, 21, NULL, 1, 2, 1, 20, 70, 90, -20, 10, 10),
+  (6, 1, now() AT TIME ZONE 'UTC' - interval '27.5 hours', now() AT TIME ZONE 'UTC' - interval '27 hours',   7, 30, 50105, 50112, 266, 262, 276, 272, 22, 23, 1, NULL, 1, 2, 20, 60, 80, -20, 10, 10),
+  (7, 1, now() AT TIME ZONE 'UTC' - interval '2.5 hours',  now() AT TIME ZONE 'UTC' - interval '2 hours',    8, 30, 50112, 50120, 235, 231, 245, 241, 24, 25, NULL, 1, 2, 1, 22, 65, 85, -25, 10, 10);
+UPDATE positions SET drive_id=5 WHERE id IN (20, 21);
+UPDATE positions SET drive_id=6 WHERE id IN (22, 23);
+UPDATE positions SET drive_id=7 WHERE id IN (24, 25);
+-- 状态：一段休眠横跨"本周"起点 (取决于运行日期)，在线时长里含 1.5 h 行驶
+INSERT INTO states (car_id, state, start_date, end_date) VALUES
+  (1, 'online', now() AT TIME ZONE 'UTC' - interval '31 hours', now() AT TIME ZONE 'UTC' - interval '26 hours'),
+  (1, 'asleep', now() AT TIME ZONE 'UTC' - interval '26 hours', now() AT TIME ZONE 'UTC' - interval '3 hours'),
+  (1, 'online', now() AT TIME ZONE 'UTC' - interval '3 hours', NULL);

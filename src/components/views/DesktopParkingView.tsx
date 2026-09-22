@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ParkingSummary, EnergyBreakdown } from '@/types';
+import { ParkingSummary, EnergyBreakdown, ParkingDrainAnalysis } from '@/types';
+import { DrainAnalysis } from '@/components/parking/DrainAnalysis';
 import { formatDuration, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
 import { Empty } from '@/components/common/Empty';
 import { Moon, Home, MapPin, ChevronRight, Zap } from 'lucide-react';
@@ -11,9 +12,10 @@ import { sumKnown } from './helpers';
 interface DesktopParkingViewProps {
   parkings: ParkingSummary[];
   energy: EnergyBreakdown;
+  analysis: ParkingDrainAnalysis;
 }
 
-export function DesktopParkingView({ parkings, energy }: DesktopParkingViewProps) {
+export function DesktopParkingView({ parkings, energy, analysis }: DesktopParkingViewProps) {
   // 列表只含最近若干次停车：时长汇总仅针对所列记录；累计损耗与平均速率取全量统计 (energy)
   const listedMinutes = sumKnown(parkings, (p) => p.duration_min);
   const listedHours = listedMinutes != null ? listedMinutes / 60 : null;
@@ -47,6 +49,9 @@ export function DesktopParkingView({ parkings, energy }: DesktopParkingViewProps
           </div>
         </div>
       </div>
+
+      {/* 掉电分析：趋势 / 分档 / 状态占比 */}
+      <DrainAnalysis data={analysis} />
 
       {/* 宽表记录 */}
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 shadow-xl overflow-hidden">

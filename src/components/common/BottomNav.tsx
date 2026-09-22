@@ -21,7 +21,11 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+          // 按天时间线没有自己的页签，归到「状态」下
+          const isActive =
+            pathname === item.href ||
+            (item.href !== '/' && pathname.startsWith(item.href)) ||
+            (item.href === '/' && pathname.startsWith('/timeline'));
           return (
             <Link
               key={item.href}

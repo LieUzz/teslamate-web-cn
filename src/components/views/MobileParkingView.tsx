@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ParkingSummary, EnergyBreakdown } from '@/types';
+import { ParkingSummary, EnergyBreakdown, ParkingDrainAnalysis } from '@/types';
+import { DrainAnalysis } from '@/components/parking/DrainAnalysis';
 import { formatDuration, formatDateTime, formatOrDash, formatPercent, DASH } from '@/lib/formatters';
 import { Empty } from '@/components/common/Empty';
 import { Moon, ChevronRight, Zap, Home, MapPin } from 'lucide-react';
@@ -11,9 +12,10 @@ import { sumKnown } from './helpers';
 interface MobileParkingViewProps {
   parkings: ParkingSummary[];
   energy: EnergyBreakdown;
+  analysis: ParkingDrainAnalysis;
 }
 
-export function MobileParkingView({ parkings, energy }: MobileParkingViewProps) {
+export function MobileParkingView({ parkings, energy, analysis }: MobileParkingViewProps) {
   // 列表只含最近若干次停车：时长汇总仅针对所列记录；累计损耗与平均速率取全量统计 (energy)
   const listedMinutes = sumKnown(parkings, (p) => p.duration_min);
   const listedHours = listedMinutes != null ? listedMinutes / 60 : null;
@@ -52,6 +54,9 @@ export function MobileParkingView({ parkings, energy }: MobileParkingViewProps) 
           </div>
         </div>
       </div>
+
+      {/* 掉电分析：趋势 / 分档 / 状态占比 */}
+      <DrainAnalysis data={analysis} />
 
       {parkings.length === 0 && <Empty title="暂无停车记录" icon={Moon} />}
 

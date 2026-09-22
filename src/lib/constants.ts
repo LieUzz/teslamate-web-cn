@@ -68,3 +68,8 @@ export const SCENE_ROAD_SECONDS_AT_100_KMH = 0.5;
 export const SCENE_ROAD_SECONDS_RANGE = [0.3, 3] as const;
 export const SCENE_CHARGE_SECONDS_AT_50_KW = 1.4;
 export const SCENE_CHARGE_SECONDS_RANGE = [0.8, 3.5] as const;
+
+// 停车待机功率分档 (W)：低于第一档视为已休眠，高于第二档视为偏高 (哨兵开启约 250–300 W)
+export const PARKING_DRAIN_POWER_BANDS_W = { normal_from: 100, high_from: 300 } as const;
+// 停车页掉电趋势图显示最近几个自然月
+export const PARKING_DRAIN_TREND_MONTHS = 6;

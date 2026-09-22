@@ -10,3 +10,4 @@ const loading = () => <Empty as="chart" title="图表加载中" />;
 export const ChargeDetailCharts = dynamic(() => import('./ChargeDetailCharts').then((m) => m.ChargeDetailCharts), { ssr: false, loading });
 export const ParkingDetailCharts = dynamic(() => import('./ParkingDetailCharts').then((m) => m.ParkingDetailCharts), { ssr: false, loading });
 export const TemperatureCharts = dynamic(() => import('./TemperatureCharts').then((m) => m.TemperatureCharts), { ssr: false, loading });
+export const ParkingDrainChart = dynamic(() => import('./ParkingDrainChart').then((m) => m.ParkingDrainChart), { ssr: false, loading });
