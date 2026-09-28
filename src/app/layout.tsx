@@ -12,7 +12,6 @@ import { themeInitScript } from '@/lib/theme';
 export const metadata: Metadata = {
   title: 'TeslaMate CN | 现代化全平台车况与轨迹可视化看板',
   description: '专为 TeslaMate 打造的现代化、全平台自适应车况管理与轨迹可视化系统',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
 };
 
 export default async function RootLayout({
