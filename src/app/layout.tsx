@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import 'leaflet/dist/leaflet.css';
 import './globals.css';
 import { fetchCars } from '@/lib/queries';
@@ -12,6 +12,14 @@ import { themeInitScript } from '@/lib/theme';
 export const metadata: Metadata = {
   title: 'TeslaMate CN | 现代化全平台车况与轨迹可视化看板',
   description: '专为 TeslaMate 打造的现代化、全平台自适应车况管理与轨迹可视化系统',
+};
+
+// 禁止页面缩放；iOS Safari 会忽略这里的设置，由 globals.css 的 touch-action 兜底
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({

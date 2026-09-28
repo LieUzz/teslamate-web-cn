@@ -80,6 +80,11 @@
   --teal-400: 13 148 136;
 }
 
+/* 禁止双指 / 双击缩放页面，只保留滚动；地图自己处理手势，不受影响 */
+html {
+  touch-action: pan-x pan-y;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
