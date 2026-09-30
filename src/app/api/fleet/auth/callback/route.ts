@@ -46,7 +46,8 @@ export async function GET(request: Request) {
   }
 
   console.info(`fleet-auth ok user=${user}`);
-  const res = NextResponse.redirect(new URL('/', url.origin), 302);
+  // 相对跳转：容器里 request.url 的 origin 是监听地址 (0.0.0.0:3000)，不是浏览器看到的域名
+  const res = new NextResponse(null, { status: 302, headers: { Location: '/' } });
   res.cookies.set(FLEET_OAUTH_STATE_COOKIE, '', { path: FLEET_OAUTH_COOKIE_PATH, maxAge: 0 });
   return res;
 }
