@@ -318,6 +318,61 @@ body {
   opacity: 0.7;
 }
 
+/* ---------------------------------------------------------------------------
+   首页 3D 车模舞台 (components/home/CarStage.tsx)。黑色舞台 + 地面聚光；
+   3D 层就绪后淡入，2D 渲染图同时淡出。canvas 只拦截横向拖动，竖向手势仍滚动页面。
+   --------------------------------------------------------------------------- */
+.stage-3d {
+  background: #000;
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+.stage-3d-visible {
+  opacity: 1;
+}
+.stage-fade-out {
+  opacity: 0;
+  transition: opacity 500ms ease-in;
+}
+.stage-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+.stage-canvas:active {
+  cursor: grabbing;
+}
+.stage-spot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 38% at 50% 82%, rgb(255 255 255 / 0.2), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 40%, rgb(255 255 255 / 0.06), transparent 75%);
+  transition: background 700ms ease;
+}
+.stage-spot[data-charging] {
+  background:
+    radial-gradient(ellipse 62% 40% at 50% 80%, rgb(var(--emerald-400) / 0.28), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 40%, rgb(var(--emerald-400) / 0.06), transparent 75%);
+  animation: scene-breathe 2.6s ease-in-out infinite alternate;
+}
+.stage-spot[data-sentry] {
+  background:
+    radial-gradient(ellipse 62% 40% at 50% 80%, rgb(var(--red-400) / 0.22), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 40%, rgb(var(--red-400) / 0.05), transparent 75%);
+}
+.stage-spot[data-dimmed] {
+  background: radial-gradient(ellipse 62% 40% at 50% 80%, rgb(255 255 255 / 0.05), transparent 70%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scene *,
   .scene *::before {

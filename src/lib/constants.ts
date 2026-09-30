@@ -63,6 +63,28 @@ export const CAR_IMAGE_SIZE_PX = 1000;
 export const CAR_IMAGE_TIMEOUT_MS = 10_000;
 export const CAR_IMAGE_BROWSER_MAX_AGE_S = 30 * 24 * 3600;
 
+// 首页 3D 车模 (components/home/CarStage.tsx)：模型文件缓存期与舞台参数
+export const CAR_MODEL_BROWSER_MAX_AGE_S = 30 * 24 * 3600;
+// 车身长度 (m)，模型按此归一化；Model Y 4.75 m，轮胎半径约 0.36 m
+export const SCENE3D_CAR_LENGTH_M = 4.75;
+export const SCENE3D_WHEEL_RADIUS_M = 0.36;
+// 相机球坐标：r 距离 (m)、yaw / pitch 角度 (度)、fov。车头朝 -Z，yaw=180 在正前方
+export const SCENE3D_HERO_POSE = { r: 5.9, yaw: 142, pitch: 10, fov: 30 } as const;
+export const SCENE3D_ENTRANCE_FROM = { r: 8.5, yaw: 176, pitch: 3, fov: 36 } as const;
+export const SCENE3D_ENTRANCE_MS = 1500;
+export const SCENE3D_FADE_MS = 500;
+// 入场后继续轻微摆动的时长，之后停止渲染
+export const SCENE3D_IDLE_SECONDS = 20;
+// 拖动转视角的范围 (相对英雄位)
+export const SCENE3D_YAW_LIMIT_DEG = 70;
+export const SCENE3D_PITCH_RANGE_DEG = [4, 22] as const;
+export const SCENE3D_MAX_DPR = 2;
+// 铰链打开角度 (度)
+export const SCENE3D_HINGE_DEG = { door: 55, frunk: 45, trunk: 70, chargePort: 90 } as const;
+export const SCENE3D_HINGE_MS = 700;
+// 休眠 / 离线时的曝光
+export const SCENE3D_DIM_EXPOSURE = 0.45;
+
 // 首页渲染图动画 (纯装饰)：把车速 / 充电功率换算成动画周期，并钳制在上下限之间
 export const SCENE_ROAD_SECONDS_AT_100_KMH = 0.5;
 export const SCENE_ROAD_SECONDS_RANGE = [0.3, 3] as const;

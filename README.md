@@ -38,6 +38,29 @@ anything unknown renders as `--` / "暂无数据".
   particles while charging (power-linked), dimmed + Zzz asleep, red radar
   with sentry on, airflow with climate on. Decorative only; disabled under
   `prefers-reduced-motion`.
+- 3D car stage (optional): `components/home/CarStage.tsx` shows the 2D render
+  immediately and, when `CAR_MODEL_FILE` is set and the browser has WebGL2,
+  loads a three.js scene (`components/home/CarScene3D.tsx`, `lib/three/*`)
+  through `next/dynamic` — the ~190 KB gz three chunk and the model
+  (`GET /api/cars/:id/model/`, meshopt glb, 30-day immutable cache + ETag)
+  are fetched only after a `HEAD` probe succeeds, so first-load JS is
+  unchanged. On ready the canvas fades in over the image and plays a 1.5 s
+  camera entrance once per session, then idles 20 s and stops rendering
+  (render-on-demand; paused when hidden or off-screen). Horizontal drag
+  orbits (±70°, pitch 4–22°, inertia, no zoom); vertical gestures still
+  scroll. Paint colour comes from `lib/carPaint.ts` (`exterior_color` →
+  colour; unknown → stays 2D). The model's own materials/textures are
+  replaced by role (`lib/three/carMaterials.ts`, classified by material name).
+  Live state → model (`lib/three/stateSync.ts`): wheels spin with speed,
+  doors / frunk / trunk / charge-port hinge when the model has those nodes
+  (skipped otherwise), charging pulses the port light and tail lights green,
+  sentry turns the rim light red, asleep/offline dims exposure; the DOM
+  overlays (road, streaks, particles, radar, airflow, Zzz) are shared with
+  the 2D scene via `SceneOverlays.tsx`. Any failure (404, load error, no
+  paint material, unrecovered context loss) falls back to 2D. Reduced
+  motion: no entrance/idle/spin/pulse, hinges still move. The model file is
+  a deploy-side asset (not in this repo); its attribution is served as the
+  `X-Model-Credit` header and canvas `aria-label` (`CAR_MODEL_CREDIT`).
 - Vehicle control (optional, Tesla Fleet API): a five-tile row under the car
   render — 闪灯 / 鸣笛 / 锁车|解锁 / 开|关空调 / 开|关哨兵 — rendered only
   when every `FLEET_*` variable is set **and** the owner has completed the
@@ -56,6 +79,21 @@ anything unknown renders as `--` / "暂无数据".
   is served at `/.well-known/appspecific/com.tesla.3p.public-key.pem` from
   `FLEET_PUBLIC_KEY_FILE`. Tile labels show a short result (已发送 / 失败 /
   未唤醒 / 稍等 / 未授权) for 2 s; the real state then follows from MQTT.
+- 3D car stage (optional): when `CAR_MODEL_FILE` points to a glb, the home
+  page probes `HEAD /api/cars/:id/model/`, loads a three.js scene on demand
+  (separate chunk, not in first-load JS) and cross-fades from the 2D render
+  to a real-time model: black stage with a floor spotlight, entrance camera
+  move once per session, drag to orbit (horizontal only; vertical still
+  scrolls), paint colour from `lib/carPaint.ts` (unknown colour = stays 2D),
+  wheels turn while driving, doors / frunk / trunk / charge port follow live
+  state when the model has those nodes, charging / sentry / sleep re-lit in
+  3D; the existing DOM overlays (`SceneOverlays.tsx`) are shared with 2D.
+  Renders only while something animates; paused when hidden or off-screen.
+  No WebGL2, low memory, load error or context loss → 2D. The model file
+  itself is a private deploy asset (credit in `CAR_MODEL_CREDIT`, sent as
+  `X-Model-Credit` and used as the canvas `aria-label`); nothing about it
+  is in this repository. Code: `components/home/CarStage.tsx`,
+  `CarScene3D.tsx`, `lib/three/*`, constants `SCENE3D_*`.
 - Car render: `GET /api/cars/:id/image/` fetches Tesla's configurator image
   once (server side, `static-assets.tesla.cn`) and caches it. Option codes come
   from the verified table in `src/lib/carImage.ts`; the service answers 200

@@ -52,6 +52,10 @@ export interface AppConfig {
   fleet: FleetConfig | null;
   // 供 Tesla 抓取的应用公钥 (PEM)；独立于 fleet，注册应用前就要能对外提供
   fleetPublicKeyFile: string | null;
+  // 首页 3D 车模 (glb) 文件；未配置则首页只用 2D 渲染图
+  carModelFile: string | null;
+  // 车模的署名 (CC BY 等)，随模型响应头和 canvas aria-label 一起给出
+  carModelCredit: string | null;
 }
 
 function readFleet(): FleetConfig | null {
@@ -89,5 +93,7 @@ export function getConfig(): AppConfig {
     timeZone: readString('TZ') ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     fleet: readFleet(),
     fleetPublicKeyFile: readString('FLEET_PUBLIC_KEY_FILE'),
+    carModelFile: readString('CAR_MODEL_FILE'),
+    carModelCredit: readString('CAR_MODEL_CREDIT'),
   };
 }

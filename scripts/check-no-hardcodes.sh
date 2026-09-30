@@ -27,6 +27,7 @@ check '演示 / 模拟数据'                   'MOCK_|mockData|NEXT_PUBLIC_DEMO
 check '向 TeslaMate 数据库写入'           'INSERT INTO|CREATE TABLE|UPDATE [a-z_]+ SET|DELETE FROM|car_metadata'
 check '密钥暴露给浏览器'                  'NEXT_PUBLIC_(AMAP_KEY|FLEET)'
 check '车辆控制私钥 / 令牌进了仓库'         'BEGIN (EC )?PRIVATE KEY|tokens\.json'
+check '3D 模型文件 / 来源进了仓库'          'sketchfab\.com|[a-z0-9_-]+\.glb'
 
 if [ "$fail" -eq 0 ]; then echo '✓ no hardcoded values found'; fi
 exit $fail

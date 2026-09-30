@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Car } from '@/types';
 import { BatteryRing } from '@/components/car/BatteryRing';
-import { CarScene } from './CarScene';
+import { CarStage } from './CarStage';
 import { StateCard } from './StateCard';
 import { DASH, formatOrDash, getCarStateInfo } from '@/lib/formatters';
 import { useNow } from '@/lib/useNow';
@@ -65,7 +65,7 @@ export function CarHero({ car, updateFailed }: CarHeroProps) {
         </div>
       ) : (
         <>
-          <CarScene car={car} alt={modelLabel ?? ''} onImageError={() => setImageFailed(true)} />
+          <CarStage car={car} alt={modelLabel ?? ''} onImageError={() => setImageFailed(true)} />
 
           <div className="flex items-end justify-between gap-3">
             <div className="flex items-baseline gap-1">
