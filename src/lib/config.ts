@@ -27,6 +27,21 @@ function readDate(name: string): string | null {
   return v;
 }
 
+// Tesla Fleet API (车辆控制)：全部变量都配齐才启用，缺任何一个就是 null
+export interface FleetConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  // OAuth 主机，如 https://auth.tesla.cn
+  authHost: string;
+  // Fleet API 主机 (只用作 OAuth audience)，如 https://fleet-api.prd.cn.vn.cloud.tesla.cn
+  apiHost: string;
+  // 签名代理 tesla-http-proxy 的地址，所有车辆请求都经它转发
+  proxyUrl: string;
+  // 用户 access / refresh token 的存储文件 (TeslaMate 数据库之外)
+  tokenFile: string;
+}
+
 export interface AppConfig {
   deliveryDate: string | null;
   electricityPriceCnyPerKwh: number | null;
@@ -34,6 +49,32 @@ export interface AppConfig {
   homeGeofenceName: string | null;
   amapKey: string | null;
   timeZone: string;
+  fleet: FleetConfig | null;
+  // 供 Tesla 抓取的应用公钥 (PEM)；独立于 fleet，注册应用前就要能对外提供
+  fleetPublicKeyFile: string | null;
+}
+
+function readFleet(): FleetConfig | null {
+  const clientId = readString('FLEET_CLIENT_ID');
+  const clientSecret = readString('FLEET_CLIENT_SECRET');
+  const redirectUri = readString('FLEET_REDIRECT_URI');
+  const authHost = readString('FLEET_AUTH_HOST');
+  const apiHost = readString('FLEET_API_HOST');
+  const proxyUrl = readString('FLEET_PROXY_URL');
+  const tokenFile = readString('FLEET_TOKEN_FILE');
+  if (!clientId || !clientSecret || !redirectUri || !authHost || !apiHost || !proxyUrl || !tokenFile) {
+    return null;
+  }
+  const trim = (u: string) => u.replace(/\/+$/, '');
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+    authHost: trim(authHost),
+    apiHost: trim(apiHost),
+    proxyUrl: trim(proxyUrl),
+    tokenFile,
+  };
 }
 
 export function getConfig(): AppConfig {
@@ -46,5 +87,7 @@ export function getConfig(): AppConfig {
     amapKey: readString('AMAP_KEY'),
     // 统计分月等 SQL 口径用的时区；未设置时取进程时区
     timeZone: readString('TZ') ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    fleet: readFleet(),
+    fleetPublicKeyFile: readString('FLEET_PUBLIC_KEY_FILE'),
   };
 }

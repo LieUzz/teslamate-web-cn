@@ -1,6 +1,7 @@
 import { fetchCars, fetchLifetimeStats, fetchUsageSummary, fetchDayTimeline } from '@/lib/queries';
 import { DashboardSwitcher } from '@/components/views/DashboardSwitcher';
 import { Empty } from '@/components/common/Empty';
+import { isFleetEnabled } from '@/lib/fleet/tokenStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,8 @@ export default async function HomePage() {
   ]);
 
   const primaryCar = cars[0];
+  // 只把"是否启用车辆控制"这个布尔值交给客户端，Fleet API 配置本身不出服务端
+  const fleetEnabled = isFleetEnabled();
 
   // 数据库里还没有车辆 (或数据库未连接)：不渲染看板
   if (!primaryCar) {
@@ -29,6 +32,7 @@ export default async function HomePage() {
       stats={stats}
       usage={usage}
       timeline={timeline}
+      fleetEnabled={fleetEnabled}
     />
   );
 }

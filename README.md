@@ -30,13 +30,32 @@ anything unknown renders as `--` / "暂无数据".
   car state (parked / charging / driving / asleep / updating), body status,
   and a today / week / month usage summary (`fetchUsageSummary`). While the
   page is visible it polls `GET /api/cars/:id/live/` (5 s driving/charging,
-  30 s online, 2 min asleep; constants in `src/lib/constants.ts`). Read-only:
-  no commands are ever sent to the car. The render is animated per state
+  30 s online, 2 min asleep; constants in `src/lib/constants.ts`). The
+  database stays read-only; the only thing ever sent to the car is the
+  optional control row below. The render is animated per state
   (`components/home/CarScene.tsx`, keyframes in `globals.css`): road + speed
   lines while driving (speed-linked, paused at 0 km/h), masked green sweep +
   particles while charging (power-linked), dimmed + Zzz asleep, red radar
   with sentry on, airflow with climate on. Decorative only; disabled under
   `prefers-reduced-motion`.
+- Vehicle control (optional, Tesla Fleet API): a five-tile row under the car
+  render — 闪灯 / 鸣笛 / 锁车|解锁 / 开|关空调 / 开|关哨兵 — rendered only
+  when every `FLEET_*` variable is set **and** the owner has completed the
+  one-time OAuth at `/api/fleet/auth/start/` (`isFleetEnabled()` in
+  `lib/fleet/tokenStore.ts`). 解锁 needs a ~1 s long press with a progress
+  ring (`lib/useLongPress.ts`); everything else is a tap. The browser only
+  sends an action name to `POST /api/cars/:id/command/`; the server maps it
+  through the allowlist in `lib/fleet/commands.ts`, takes the VIN from the
+  database, wakes the car if needed, and forwards to Tesla's
+  `tesla-http-proxy` sidecar (signed Vehicle Command Protocol,
+  `lib/fleet/client.ts`). One command per car at a time, 10 commands and 2
+  wakes per minute per process, one 401 retry, never a retry after a
+  timeout. Every command logs one `fleet-command` line with the SSO user
+  (`X-Auth-Request-Email`, required). Tokens live in `FLEET_TOKEN_FILE`
+  outside the TeslaMate database and rotate on refresh. The app's public key
+  is served at `/.well-known/appspecific/com.tesla.3p.public-key.pem` from
+  `FLEET_PUBLIC_KEY_FILE`. Tile labels show a short result (已发送 / 失败 /
+  未唤醒 / 稍等 / 未授权) for 2 s; the real state then follows from MQTT.
 - Car render: `GET /api/cars/:id/image/` fetches Tesla's configurator image
   once (server side, `static-assets.tesla.cn`) and caches it. Option codes come
   from the verified table in `src/lib/carImage.ts`; the service answers 200

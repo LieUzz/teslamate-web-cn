@@ -12,9 +12,10 @@ interface DashboardSwitcherProps {
   stats: LifetimeStats;
   usage: UsageSummary[];
   timeline: DayTimeline;
+  fleetEnabled: boolean;
 }
 
-export function DashboardSwitcher({ car: initialCar, stats, usage, timeline }: DashboardSwitcherProps) {
+export function DashboardSwitcher({ car: initialCar, stats, usage, timeline, fleetEnabled }: DashboardSwitcherProps) {
   // 页面开着时车况自动更新；其余数据仍随整页刷新
   const { car, failed: updateFailed } = useLiveCar(initialCar);
   const { isMobileLayout, mode } = useViewModeStore();
@@ -29,6 +30,7 @@ export function DashboardSwitcher({ car: initialCar, stats, usage, timeline }: D
         usage={usage}
         timeline={timeline}
         updateFailed={updateFailed}
+        fleetEnabled={fleetEnabled}
       />
     );
   }
@@ -40,6 +42,7 @@ export function DashboardSwitcher({ car: initialCar, stats, usage, timeline }: D
       usage={usage}
       timeline={timeline}
       updateFailed={updateFailed}
+      fleetEnabled={fleetEnabled}
     />
   );
 }

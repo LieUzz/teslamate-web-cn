@@ -5,6 +5,7 @@ import { Car, LifetimeStats, UsageSummary as UsageSummaryData, DayTimeline as Da
 import { CarHero } from '@/components/home/CarHero';
 import { AlertStrip } from '@/components/home/AlertStrip';
 import { BodyStatus } from '@/components/home/BodyStatus';
+import { CarControls } from '@/components/home/CarControls';
 import { UsageSummary } from '@/components/home/UsageSummary';
 import { DayTimeline } from '@/components/home/DayTimeline';
 import { deriveAlerts } from '@/lib/alerts';
@@ -18,17 +19,19 @@ interface DesktopDashboardProps {
   usage: UsageSummaryData[];
   timeline: DayTimelineData;
   updateFailed: boolean;
+  fleetEnabled: boolean;
 }
 
-export function DesktopDashboard({ car, stats, usage, timeline, updateFailed }: DesktopDashboardProps) {
+export function DesktopDashboard({ car, stats, usage, timeline, updateFailed, fleetEnabled }: DesktopDashboardProps) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <AlertStrip alerts={deriveAlerts(car)} />
 
-      {/* 左：渲染图 + 状态卡；右：车身一览 + 用车小结 */}
+      {/* 左：渲染图 + 状态卡；右：车辆控制 (若启用) + 车身一览 + 用车小结 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <CarHero car={car} updateFailed={updateFailed} />
         <div className="space-y-6">
+          <CarControls car={car} enabled={fleetEnabled} />
           <BodyStatus car={car} />
           <UsageSummary summaries={usage} />
         </div>

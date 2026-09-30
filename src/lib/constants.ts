@@ -69,6 +69,22 @@ export const SCENE_ROAD_SECONDS_RANGE = [0.3, 3] as const;
 export const SCENE_CHARGE_SECONDS_AT_50_KW = 1.4;
 export const SCENE_CHARGE_SECONDS_RANGE = [0.8, 3.5] as const;
 
+// 车辆控制 (Tesla Fleet API)：休眠的车先唤醒再发命令；唤醒按次计费，且命令超时后绝不重发 (可能重复执行)
+export const FLEET_WAKE_TIMEOUT_MS = 30_000;
+export const FLEET_WAKE_POLL_MS = 3_000;
+export const FLEET_COMMAND_TIMEOUT_MS = 15_000;
+export const FLEET_TOKEN_TIMEOUT_MS = 10_000;
+// 本进程内的限流，远低于 Tesla 的上限 (30 命令 / 分、3 唤醒 / 分)
+export const FLEET_MAX_COMMANDS_PER_MIN = 10;
+export const FLEET_MAX_WAKES_PER_MIN = 2;
+// access token 距过期不足该时长就先刷新
+export const FLEET_TOKEN_REFRESH_MARGIN_MS = 60_000;
+// OAuth state cookie 的有效期
+export const FLEET_OAUTH_STATE_MAX_AGE_S = 600;
+// 控制按钮：长按触发时长、结果提示停留时长
+export const FLEET_LONG_PRESS_MS = 1_000;
+export const FLEET_RESULT_FLASH_MS = 2_000;
+
 // 停车待机功率分档 (W)：低于第一档视为已休眠，高于第二档视为偏高 (哨兵开启约 250–300 W)
 export const PARKING_DRAIN_POWER_BANDS_W = { normal_from: 100, high_from: 300 } as const;
 // 停车页掉电趋势图显示最近几个自然月

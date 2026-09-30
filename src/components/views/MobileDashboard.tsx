@@ -5,6 +5,7 @@ import { Car, UsageSummary as UsageSummaryData, DayTimeline as DayTimelineData }
 import { CarHero } from '@/components/home/CarHero';
 import { AlertStrip } from '@/components/home/AlertStrip';
 import { BodyStatus } from '@/components/home/BodyStatus';
+import { CarControls } from '@/components/home/CarControls';
 import { UsageSummary } from '@/components/home/UsageSummary';
 import { DayTimeline } from '@/components/home/DayTimeline';
 import { deriveAlerts } from '@/lib/alerts';
@@ -15,15 +16,19 @@ interface MobileDashboardProps {
   usage: UsageSummaryData[];
   timeline: DayTimelineData;
   updateFailed: boolean;
+  fleetEnabled: boolean;
 }
 
-export function MobileDashboard({ car, usage, timeline, updateFailed }: MobileDashboardProps) {
+export function MobileDashboard({ car, usage, timeline, updateFailed, fleetEnabled }: MobileDashboardProps) {
   return (
     <div className="space-y-3.5 pb-20 pt-1 px-2.5 max-w-lg mx-auto">
       <AlertStrip alerts={deriveAlerts(car)} />
 
       {/* 渲染图 + 电量 + 随状态切换的状态卡 */}
       <CarHero car={car} updateFailed={updateFailed} />
+
+      {/* 车辆控制 (Fleet API 已配置并授权时才显示) */}
+      <CarControls car={car} enabled={fleetEnabled} />
 
       <BodyStatus car={car} />
 

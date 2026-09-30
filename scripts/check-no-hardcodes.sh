@@ -25,7 +25,8 @@ check '对车主的假设 (家充/谷电/7kW)'      '家用 ?7 ?kW|谷电|家里
 check '已移除的油车对比模块'               'SavingsAnalysis|fetchSavings|fuel_equivalent_cost|saved_cost|FUEL_PRICE_CNY|FUEL_CONSUMPTION_L|燃油|油车|油费'
 check '演示 / 模拟数据'                   'MOCK_|mockData|NEXT_PUBLIC_DEMO_MODE|generateStaticParams'
 check '向 TeslaMate 数据库写入'           'INSERT INTO|CREATE TABLE|UPDATE [a-z_]+ SET|DELETE FROM|car_metadata'
-check '密钥暴露给浏览器'                  'NEXT_PUBLIC_AMAP_KEY'
+check '密钥暴露给浏览器'                  'NEXT_PUBLIC_(AMAP_KEY|FLEET)'
+check '车辆控制私钥 / 令牌进了仓库'         'BEGIN (EC )?PRIVATE KEY|tokens\.json'
 
 if [ "$fail" -eq 0 ]; then echo '✓ no hardcoded values found'; fi
 exit $fail
