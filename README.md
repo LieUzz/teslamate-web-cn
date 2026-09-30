@@ -86,8 +86,13 @@ anything unknown renders as `--` / "暂无数据".
   move once per session, drag to orbit (horizontal only; vertical still
   scrolls), paint colour from `lib/carPaint.ts` (unknown colour = stays 2D),
   wheels turn while driving, doors / frunk / trunk / charge port follow live
-  state when the model has those nodes, charging / sentry / sleep re-lit in
-  3D; the existing DOM overlays (`SceneOverlays.tsx`) are shared with 2D.
+  state (glTF closure clips played forward / backward when the file has them,
+  otherwise hinge nodes rotated, otherwise skipped), charging / sentry /
+  sleep re-lit in 3D; the existing DOM overlays (`SceneOverlays.tsx`) are
+  shared with 2D. Two material modes, chosen from the file (`asset.extras.
+  materialMode` or "has textures"): `keep` leaves the model's own PBR
+  materials and only recolours `Paint*`; `roles` classifies materials by
+  name and swaps in `lib/three/carMaterials.ts`.
   Renders only while something animates; paused when hidden or off-screen.
   No WebGL2, low memory, load error or context loss → 2D. The model file
   itself is a private deploy asset (credit in `CAR_MODEL_CREDIT`, sent as

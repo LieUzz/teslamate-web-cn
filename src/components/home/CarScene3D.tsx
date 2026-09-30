@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { Car } from '@/types';
 import { PaintSpec } from '@/lib/carPaint';
 import { createStage, Stage } from '@/lib/three/createScene';
-import { CarRig, disposeRig, loadCarModel } from '@/lib/three/loadModel';
+import { CarRig, loadCarModel } from '@/lib/three/loadModel';
 import { attachOrbit } from '@/lib/three/orbit';
 import { playEntrance, playIdle, setHeroPose } from '@/lib/three/entrance';
 import { createSceneState, SceneState, syncCarState } from '@/lib/three/stateSync';
@@ -100,7 +100,7 @@ export function CarScene3D({ car, src, paint, credit, onReady, onFail }: CarScen
     loadCarModel(src, paintRef.current)
       .then((rig) => {
         if (disposed) {
-          disposeRig(rig);
+          rig.dispose();
           return;
         }
         rigRef.current = rig;
@@ -131,7 +131,7 @@ export function CarScene3D({ car, src, paint, credit, onReady, onFail }: CarScen
       io.disconnect();
       ro.disconnect();
       detachOrbit();
-      if (rigRef.current) disposeRig(rigRef.current);
+      rigRef.current?.dispose();
       rigRef.current = null;
       stateRef.current = null;
       stage.dispose();
